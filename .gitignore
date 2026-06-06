@@ -1,0 +1,13 @@
+node_modules
+dist
+.env*
+*.hex
+certs/*.key
+certs/*.crt
+coverage/
+.turbo/
+*.log
+docker/sandbox/node_modules
+config/
+.DS_Store
+*.local
