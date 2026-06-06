@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: "UAP CI"
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: "Checkout repository"
+        uses: actions/checkout@v4
+
+      - name: "Setup Node.js"
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: "Install dependencies"
+        run: npm ci
+
+      - name: "Lint"
+        run: npx eslint . --ext .ts --max-warnings 0
+
+      - name: "Typecheck"
+        working-directory: packages/gateway
+        run: npx tsc --noEmit
+
+      - name: "Typecheck sdk-ts"
+        working-directory: packages/sdk-ts
+        run: npx tsc --noEmit
+
+      - name: "Tests"
+        working-directory: packages/gateway
+        run: npx vitest run --reporter=verbose
+
+      - name: "Tests sdk-ts"
+        working-directory: packages/sdk-ts
+        run: npx vitest run --reporter=verbose
