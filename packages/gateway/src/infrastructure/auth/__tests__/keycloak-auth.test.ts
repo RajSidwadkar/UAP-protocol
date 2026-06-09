@@ -36,7 +36,7 @@ describe('KeycloakAuthAdapter', () => {
     vi.mocked(jose.jwtVerify).mockResolvedValue({ 
       payload: mockPayload, 
       protectedHeader: { alg: 'RS256' },
-      key: {} as any
+      key: undefined as unknown as jose.KeyLike
     });
 
     const claims = await adapter.verifyToken('valid-token', ['tool:read']);
@@ -78,7 +78,7 @@ describe('KeycloakAuthAdapter', () => {
     vi.mocked(jose.jwtVerify).mockResolvedValue({ 
       payload: mockPayload, 
       protectedHeader: { alg: 'RS256' },
-      key: {} as any
+      key: undefined as unknown as jose.KeyLike
     });
 
     await expect(adapter.verifyToken('token-missing-scope', ['task:submit']))

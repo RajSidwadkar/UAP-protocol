@@ -1,8 +1,9 @@
+/// <reference types="node" />
 import process from 'node:process';
 
-const KEYCLOAK_URL = process.env['KEYCLOAK_URL'] || 'http://localhost:8080';
-const KEYCLOAK_ADMIN = process.env['KEYCLOAK_ADMIN'] || 'admin';
-const KEYCLOAK_ADMIN_PASSWORD = process.env['KEYCLOAK_ADMIN_PASSWORD'] || 'dev_password_change_in_prod';
+const KEYCLOAK_URL = process.env.KEYCLOAK_URL || 'http://localhost:8080';
+const KEYCLOAK_ADMIN = process.env.KEYCLOAK_ADMIN || 'admin';
+const KEYCLOAK_ADMIN_PASSWORD = process.env.KEYCLOAK_ADMIN_PASSWORD || 'dev_password_change_in_prod';
 
 interface KeycloakTokenResponse {
   access_token: string;
@@ -30,7 +31,9 @@ async function fetchJson<T>(url: string, options: RequestInit): Promise<T> {
     const text = await res.text();
     throw new Error(`HTTP ${res.status} at ${url}: ${text}`);
   }
-  if (res.status === 204) return {} as T;
+  if (res.status === 204) {
+    return undefined as unknown as T;
+  }
   return await res.json() as T;
 }
 
@@ -55,14 +58,15 @@ async function bootstrap() {
     throw new Error(`Failed to get admin token: ${await tokenResponse.text()}`);
   }
 
-  const { access_token: token } = await tokenResponse.json() as KeycloakTokenResponse;
+  const tokenData = await tokenResponse.json() as KeycloakTokenResponse;
+  const token = tokenData.access_token;
   const authHeader = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
 
   // 2. Create realm 'uap' if missing
   const realmRes = await fetch(`${KEYCLOAK_URL}/admin/realms/uap`, { headers: authHeader });
   if (realmRes.status === 404) {
     console.log('Creating realm: uap');
-    await fetchJson(`${KEYCLOAK_URL}/admin/realms`, {
+    await fetchJson<void>(`${KEYCLOAK_URL}/admin/realms`, {
       method: 'POST',
       headers: authHeader,
       body: JSON.stringify({ realm: 'uap', enabled: true }),
@@ -77,7 +81,7 @@ async function bootstrap() {
 
   if (!client) {
     console.log('Creating client: uap-gateway');
-    await fetchJson(`${KEYCLOAK_URL}/admin/realms/uap/clients`, {
+    await fetchJson<void>(`${KEYCLOAK_URL}/admin/realms/uap/clients`, {
       method: 'POST',
       headers: authHeader,
       body: JSON.stringify({
@@ -100,7 +104,7 @@ async function bootstrap() {
     const roleRes = await fetch(`${KEYCLOAK_URL}/admin/realms/uap/roles/${roleName}`, { headers: authHeader });
     if (roleRes.status === 404) {
       console.log(`Creating role: ${roleName}`);
-      await fetchJson(`${KEYCLOAK_URL}/admin/realms/uap/roles`, {
+      await fetchJson<void>(`${KEYCLOAK_URL}/admin/realms/uap/roles`, {
         method: 'POST',
         headers: authHeader,
         body: JSON.stringify({ name: roleName }),
@@ -116,7 +120,7 @@ async function bootstrap() {
 
   if (!user) {
     console.log('Creating user: uap-test@example.com');
-    await fetchJson(`${KEYCLOAK_URL}/admin/realms/uap/users`, {
+    await fetchJson<void>(`${KEYCLOAK_URL}/admin/realms/uap/users`, {
       method: 'POST',
       headers: authHeader,
       body: JSON.stringify({
@@ -138,7 +142,7 @@ async function bootstrap() {
   const rolesToAssign = realmRoles.filter((r) => roles.includes(r.name));
 
   if (rolesToAssign.length > 0) {
-    await fetchJson(`${KEYCLOAK_URL}/admin/realms/uap/users/${user.id}/role-mappings/realm`, {
+    await fetchJson<void>(`${KEYCLOAK_URL}/admin/realms/uap/users/${user.id}/role-mappings/realm`, {
       method: 'POST',
       headers: authHeader,
       body: JSON.stringify(rolesToAssign),
