@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import Ajv from 'ajv';
 import { UapRpcTransport } from '../uap-rpc';
 import { UapValidationError, UapUnknownSchemaRefError } from '../../domain/errors';
 import { UapEnvelope } from '../../domain/envelope';
@@ -43,7 +44,7 @@ describe('UapRpcTransport', () => {
   });
 
   it('4. validate() called twice with same schema_ref → AJV compile called only ONCE', () => {
-    const ajv = (transport as any).ajv;
+    const ajv = (transport as unknown as { ajv: Ajv }).ajv;
     const spy = vi.spyOn(ajv, 'compile');
 
     transport.validate(VALID_FIXTURE);
