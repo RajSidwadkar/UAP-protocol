@@ -1,62 +1,98 @@
-const KEYCLOAK_URL = process.env.KEYCLOAK_URL || 'http://localhost:8080';
-const KEYCLOAK_ADMIN = process.env.KEYCLOAK_ADMIN || 'admin';
-const KEYCLOAK_ADMIN_PASSWORD = process.env.KEYCLOAK_ADMIN_PASSWORD || 'dev_password_change_in_prod';
+import process from 'node:process';
+
+const KEYCLOAK_URL = process.env['KEYCLOAK_URL'] || 'http://localhost:8080';
+const KEYCLOAK_ADMIN = process.env['KEYCLOAK_ADMIN'] || 'admin';
+const KEYCLOAK_ADMIN_PASSWORD = process.env['KEYCLOAK_ADMIN_PASSWORD'] || 'dev_password_change_in_prod';
+
+interface KeycloakTokenResponse {
+  access_token: string;
+}
+
+interface KeycloakClient {
+  id: string;
+  clientId: string;
+}
+
+interface KeycloakRole {
+  id: string;
+  name: string;
+}
+
+interface KeycloakUser {
+  id: string;
+  username: string;
+  email: string;
+}
+
+async function fetchJson<T>(url: string, options: RequestInit): Promise<T> {
+  const res = await fetch(url, options);
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`HTTP ${res.status} at ${url}: ${text}`);
+  }
+  if (res.status === 204) return {} as T;
+  return await res.json() as T;
+}
 
 async function bootstrap() {
   console.log('Starting Keycloak bootstrap...');
 
   // 1. Get admin access token
+  const tokenParams = new URLSearchParams({
+    grant_type: 'password',
+    client_id: 'admin-cli',
+    username: KEYCLOAK_ADMIN,
+    password: KEYCLOAK_ADMIN_PASSWORD,
+  });
+
   const tokenResponse = await fetch(`${KEYCLOAK_URL}/realms/master/protocol/openid-connect/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      grant_type: 'password',
-      client_id: 'admin-cli',
-      username: KEYCLOAK_ADMIN,
-      password: KEYCLOAK_ADMIN_PASSWORD,
-    }),
+    body: tokenParams,
   });
 
   if (!tokenResponse.ok) {
     throw new Error(`Failed to get admin token: ${await tokenResponse.text()}`);
   }
 
-  const { access_token: token } = await tokenResponse.json() as { access_token: string };
+  const { access_token: token } = await tokenResponse.json() as KeycloakTokenResponse;
   const authHeader = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
 
   // 2. Create realm 'uap' if missing
   const realmRes = await fetch(`${KEYCLOAK_URL}/admin/realms/uap`, { headers: authHeader });
   if (realmRes.status === 404) {
     console.log('Creating realm: uap');
-    await fetch(`${KEYCLOAK_URL}/admin/realms`, {
+    await fetchJson(`${KEYCLOAK_URL}/admin/realms`, {
       method: 'POST',
       headers: authHeader,
       body: JSON.stringify({ realm: 'uap', enabled: true }),
     });
+  } else if (!realmRes.ok) {
+    throw new Error(`Failed to check realm: ${await realmRes.text()}`);
   }
 
   // 3. Create client 'uap-gateway' if missing
-  const clientsRes = await fetch(`${KEYCLOAK_URL}/admin/realms/uap/clients`, { headers: authHeader });
-  const clients = await clientsRes.json() as any[];
-  let client = clients.find((c: any) => c.clientId === 'uap-gateway');
+  const clients = await fetchJson<KeycloakClient[]>(`${KEYCLOAK_URL}/admin/realms/uap/clients`, { headers: authHeader });
+  let client = clients.find((c) => c.clientId === 'uap-gateway');
 
   if (!client) {
     console.log('Creating client: uap-gateway');
-    await fetch(`${KEYCLOAK_URL}/admin/realms/uap/clients`, {
+    await fetchJson(`${KEYCLOAK_URL}/admin/realms/uap/clients`, {
       method: 'POST',
       headers: authHeader,
       body: JSON.stringify({
         clientId: 'uap-gateway',
         enabled: true,
-        bearerOnly: true, // Resource server
+        bearerOnly: true,
         standardFlowEnabled: false,
         directAccessGrantsEnabled: false,
       }),
     });
-    const newClientsRes = await fetch(`${KEYCLOAK_URL}/admin/realms/uap/clients`, { headers: authHeader });
-    const newClients = await newClientsRes.json() as any[];
-    client = newClients.find((c: any) => c.clientId === 'uap-gateway');
+    const newClients = await fetchJson<KeycloakClient[]>(`${KEYCLOAK_URL}/admin/realms/uap/clients`, { headers: authHeader });
+    client = newClients.find((c) => c.clientId === 'uap-gateway');
   }
+
+  if (!client) throw new Error('Failed to create or find uap-gateway client');
 
   // 4. Create roles
   const roles = ['tool:read', 'tool:write', 'task:submit', 'task:read', 'task:cancel'];
@@ -64,22 +100,23 @@ async function bootstrap() {
     const roleRes = await fetch(`${KEYCLOAK_URL}/admin/realms/uap/roles/${roleName}`, { headers: authHeader });
     if (roleRes.status === 404) {
       console.log(`Creating role: ${roleName}`);
-      await fetch(`${KEYCLOAK_URL}/admin/realms/uap/roles`, {
+      await fetchJson(`${KEYCLOAK_URL}/admin/realms/uap/roles`, {
         method: 'POST',
         headers: authHeader,
         body: JSON.stringify({ name: roleName }),
       });
+    } else if (!roleRes.ok) {
+      throw new Error(`Failed to check role ${roleName}: ${await roleRes.text()}`);
     }
   }
 
   // 5. Create user 'uap-test@example.com' if missing
-  const usersRes = await fetch(`${KEYCLOAK_URL}/admin/realms/uap/users?email=uap-test@example.com`, { headers: authHeader });
-  const users = await usersRes.json() as any[];
+  const users = await fetchJson<KeycloakUser[]>(`${KEYCLOAK_URL}/admin/realms/uap/users?email=uap-test@example.com`, { headers: authHeader });
   let user = users[0];
 
   if (!user) {
     console.log('Creating user: uap-test@example.com');
-    await fetch(`${KEYCLOAK_URL}/admin/realms/uap/users`, {
+    await fetchJson(`${KEYCLOAK_URL}/admin/realms/uap/users`, {
       method: 'POST',
       headers: authHeader,
       body: JSON.stringify({
@@ -90,21 +127,23 @@ async function bootstrap() {
         credentials: [{ type: 'password', value: 'password', temporary: false }],
       }),
     });
-    const newUserRes = await fetch(`${KEYCLOAK_URL}/admin/realms/uap/users?email=uap-test@example.com`, { headers: authHeader });
-    const newUsers = await newUserRes.json() as any[];
+    const newUsers = await fetchJson<KeycloakUser[]>(`${KEYCLOAK_URL}/admin/realms/uap/users?email=uap-test@example.com`, { headers: authHeader });
     user = newUsers[0];
   }
 
-  // Assign roles to user
-  const realmRolesRes = await fetch(`${KEYCLOAK_URL}/admin/realms/uap/roles`, { headers: authHeader });
-  const realmRoles = await realmRolesRes.json() as any[];
-  const rolesToAssign = realmRoles.filter((r: any) => roles.includes(r.name));
+  if (!user) throw new Error('Failed to create or find uap-test user');
 
-  await fetch(`${KEYCLOAK_URL}/admin/realms/uap/users/${user.id}/role-mappings/realm`, {
-    method: 'POST',
-    headers: authHeader,
-    body: JSON.stringify(rolesToAssign),
-  });
+  // Assign roles to user
+  const realmRoles = await fetchJson<KeycloakRole[]>(`${KEYCLOAK_URL}/admin/realms/uap/roles`, { headers: authHeader });
+  const rolesToAssign = realmRoles.filter((r) => roles.includes(r.name));
+
+  if (rolesToAssign.length > 0) {
+    await fetchJson(`${KEYCLOAK_URL}/admin/realms/uap/users/${user.id}/role-mappings/realm`, {
+      method: 'POST',
+      headers: authHeader,
+      body: JSON.stringify(rolesToAssign),
+    });
+  }
 
   console.log(JSON.stringify({
     realm: 'uap',
@@ -114,7 +153,8 @@ async function bootstrap() {
   }, null, 2));
 }
 
-bootstrap().catch(err => {
-  console.error('Bootstrap failed:', err);
+bootstrap().catch((err: unknown) => {
+  const message = err instanceof Error ? err.message : String(err);
+  console.error('Bootstrap failed:', message);
   process.exit(1);
 });

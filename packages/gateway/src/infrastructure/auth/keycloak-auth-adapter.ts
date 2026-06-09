@@ -33,10 +33,10 @@ export class KeycloakAuthAdapter implements IAuthPort {
       });
 
       return claims;
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.warn({ 
         kind: 'AUTH_FAILURE', 
-        errorType: err.constructor.name 
+        errorType: err instanceof Error ? err.constructor.name : typeof err 
       });
 
       if (err instanceof jose.errors.JWTExpired) {
@@ -49,7 +49,8 @@ export class KeycloakAuthAdapter implements IAuthPort {
         throw err;
       }
 
-      throw new UapAuthError(err.message || 'Authentication failed');
+      const message = err instanceof Error ? err.message : 'Authentication failed';
+      throw new UapAuthError(message);
     }
   }
 
