@@ -5,6 +5,7 @@
     "noUncheckedIndexedAccess": true,
     "target": "ES2022",
     "module": "NodeNext",
+    "types": ["node"],
     "moduleResolution": "NodeNext",
     "declaration": true,
     "sourceMap": true,
