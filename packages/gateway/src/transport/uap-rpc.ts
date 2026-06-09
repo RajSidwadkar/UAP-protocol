@@ -95,7 +95,7 @@ export class UapRpcTransport {
         return results;
       }
       default:
-        throw new UapValidationError(`Unsupported batch semantics: ${(batch as any).semantics}`);
+        throw new UapValidationError(`Unsupported batch semantics: ${batch.semantics}`);
     }
   }
 
