@@ -6,8 +6,10 @@ import { AuditEventBus } from '../application/audit-event-bus';
 import { PinoAuditAdapter } from './audit/pino-audit-adapter';
 import { OtelTraceAdapter } from './trace/otel-trace-adapter';
 import { InMemoryRegistryAdapter } from './registry/in-memory-registry-adapter';
+import { RedisRegistryAdapter } from './registry/redis-registry-adapter';
 import { InvokeToolUseCase } from '../application/use-cases/invoke-tool.use-case';
 import { DelegateTaskUseCase } from '../application/use-cases/delegate-task.use-case';
+import { RouteToolCallUseCase } from '../application/use-cases/route-tool-call.use-case';
 import { IAuthPort } from '../application/ports/i-auth-port';
 import { ICardSignerPort } from '../domain/capability-card';
 import { ISandboxPort } from '../application/ports/i-sandbox-port';
@@ -22,6 +24,7 @@ export interface AppContainer {
   registry: IRegistryPort;
   invokeTool: InvokeToolUseCase;
   delegateTask: DelegateTaskUseCase;
+  routeToolCall: RouteToolCallUseCase;
 }
 
 /**
@@ -66,13 +69,15 @@ export function buildContainer(): AppContainer {
   audit.subscribe(new PinoAuditAdapter(logDir));
   audit.subscribe(new OtelTraceAdapter());
 
-  // 5. InMemoryRegistryAdapter
-  // TODO: Implement RedisRegistryAdapter if REDIS_URL is set
-  const registry = new InMemoryRegistryAdapter();
+  // 5. Registry Adapter
+  const registry: IRegistryPort = env.REDIS_URL
+    ? new RedisRegistryAdapter(env.REDIS_URL)
+    : new InMemoryRegistryAdapter();
 
   // Use cases
   const invokeTool = new InvokeToolUseCase(sandbox);
   const delegateTask = new DelegateTaskUseCase(registry);
+  const routeToolCall = new RouteToolCallUseCase(registry, audit);
 
   return {
     auth,
@@ -82,5 +87,6 @@ export function buildContainer(): AppContainer {
     registry,
     invokeTool,
     delegateTask,
+    routeToolCall,
   };
 }
