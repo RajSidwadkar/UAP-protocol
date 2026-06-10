@@ -1,21 +1,48 @@
-import { IRegistryPort } from '../../application/ports/i-registry-port';
+import { CapabilityCard } from '../../domain/capability-card';
+import { IRegistryPort, RegistryEntry } from '../../application/ports/i-registry-port';
 
 export class InMemoryRegistryAdapter implements IRegistryPort {
-  private registry: Map<string, Record<string, unknown>> = new Map();
+  private registry: Map<string, RegistryEntry> = new Map();
 
-  async register(id: string, metadata: Record<string, unknown>): Promise<void> {
-    this.registry.set(id, metadata);
+  async register(card: CapabilityCard, endpoint: string): Promise<void> {
+    if (card.expiresAt <= Date.now()) {
+      throw new Error('Card is expired');
+    }
+
+    const agentId = card.issuer;
+    const now = Date.now();
+    
+    const entry: RegistryEntry = {
+      agentId,
+      endpoint,
+      card,
+      registeredAt: this.registry.get(agentId)?.registeredAt ?? now,
+      lastHeartbeat: now,
+    };
+
+    this.registry.set(agentId, entry);
   }
 
-  async deregister(id: string): Promise<void> {
-    this.registry.delete(id);
+  async resolve(agentId: string): Promise<RegistryEntry | null> {
+    const entry = this.registry.get(agentId);
+    if (!entry) {
+      return null;
+    }
+
+    const updatedEntry: RegistryEntry = {
+      ...entry,
+      lastHeartbeat: Date.now(),
+    };
+    this.registry.set(agentId, updatedEntry);
+    
+    return updatedEntry;
   }
 
-  async get(id: string): Promise<Record<string, unknown> | null> {
-    return this.registry.get(id) || null;
-  }
-
-  async list(): Promise<Record<string, unknown>[]> {
+  async list(): Promise<RegistryEntry[]> {
     return Array.from(this.registry.values());
+  }
+
+  async deregister(agentId: string): Promise<void> {
+    this.registry.delete(agentId);
   }
 }

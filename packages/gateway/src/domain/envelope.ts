@@ -30,6 +30,16 @@ export const UapEnvelopeSchema = z.object({
 export type UapEnvelope = z.infer<typeof UapEnvelopeSchema>;
 export type UapHeader = z.infer<typeof UapHeaderSchema>;
 
+export interface UapResponse {
+  uap: UapHeader;
+  result: Record<string, unknown>;
+  error?: {
+    code: string;
+    message: string;
+    metadata?: Record<string, unknown>;
+  };
+}
+
 /**
  * Validates data against the UapEnvelopeSchema.
  * On failure, emits a structured console.warn as per requirements.

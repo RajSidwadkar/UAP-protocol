@@ -1,6 +1,16 @@
+import { CapabilityCard } from '../../domain/capability-card';
+
+export interface RegistryEntry {
+  agentId: string;
+  endpoint: string;
+  card: CapabilityCard;
+  registeredAt: number;
+  lastHeartbeat: number;
+}
+
 export interface IRegistryPort {
-  register(id: string, metadata: Record<string, unknown>): Promise<void>;
-  deregister(id: string): Promise<void>;
-  get(id: string): Promise<Record<string, unknown> | null>;
-  list(): Promise<Record<string, unknown>[]>;
+  register(card: CapabilityCard, endpoint: string): Promise<void>;
+  resolve(agentId: string): Promise<RegistryEntry | null>;
+  list(): Promise<RegistryEntry[]>;
+  deregister(agentId: string): Promise<void>;
 }
