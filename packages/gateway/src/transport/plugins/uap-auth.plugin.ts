@@ -39,8 +39,9 @@ const uapAuthPlugin: FastifyPluginAsync<AuthPluginOptions> = async (fastify, opt
     try {
       const claims = await container.auth.verifyToken(token, []);
       request.uapClaims = claims;
-    } catch (err: any) {
-      reply.code(401).send({ error: err.message });
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      reply.code(401).send({ error: errorMessage });
     }
   });
 };

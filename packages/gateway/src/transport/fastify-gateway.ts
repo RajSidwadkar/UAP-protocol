@@ -25,7 +25,7 @@ export async function buildGateway(container: AppContainer): Promise<FastifyInst
   });
 
   // 0. Global error handler (at the top to ensure it covers all plugins/routes)
-  fastify.setErrorHandler(async (error: any, request, reply) => {
+  fastify.setErrorHandler(async (error: Error, request, reply) => {
     // Log error for internal tracking
     request.log.error(error);
 
@@ -38,17 +38,17 @@ export async function buildGateway(container: AppContainer): Promise<FastifyInst
       outcome: 'failure',
       metadata: {
         error: error.message,
-        code: (error as any).code || 'INTERNAL_ERROR',
+        code: (error instanceof Error && 'code' in error ? (error as { code?: string }).code : 'INTERNAL_ERROR') || 'INTERNAL_ERROR',
         stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
       },
     });
     container.audit.publish(auditEvent);
 
-    const statusCode = error.statusCode || 500;
+    const statusCode = (error instanceof Error && 'statusCode' in error ? (error as { statusCode?: number }).statusCode : 500) || 500;
     reply.status(statusCode).send({
       statusCode,
       error: error.message,
-      code: (error as any).code || 'INTERNAL_ERROR',
+      code: (error instanceof Error && 'code' in error ? (error as { code?: string }).code : 'INTERNAL_ERROR') || 'INTERNAL_ERROR',
     });
   });
 
