@@ -103,4 +103,50 @@ describe('KeycloakAuthAdapter', () => {
     new KeycloakAuthAdapter(keycloakUrl, realm, audience);
     expect(jose.createRemoteJWKSet).toHaveBeenCalledTimes(2);
   });
+
+  it('introspect() with valid fresh token → returns { active: true } with correct sub and scope', async () => {
+    const mockPayload: jose.JWTPayload = {
+      sub: 'user-456',
+      scope: 'tool:read',
+      exp: Math.floor(Date.now() / 1000) + 3600,
+    };
+    vi.mocked(jose.jwtVerify).mockResolvedValue({ 
+      payload: mockPayload, 
+      protectedHeader: { alg: 'RS256' },
+      key: { type: 'public' } as CryptoKey
+    });
+
+    const result = await adapter.introspect('valid-token');
+    
+    expect(result).toEqual({
+      active: true,
+      sub: 'user-456',
+      scope: ['tool:read'],
+      exp: mockPayload.exp,
+    });
+    expect(jose.jwtVerify).toHaveBeenCalledWith('valid-token', expect.any(Function), expect.objectContaining({
+      maxTokenAge: '15 minutes',
+    }));
+  });
+
+  it('introspect() with expired token (jose throws JWTExpired) → returns { active: false }', async () => {
+    vi.mocked(jose.jwtVerify).mockRejectedValue(new jose.errors.JWTExpired('Token expired', {}));
+
+    const result = await adapter.introspect('expired-token');
+    expect(result).toEqual({ active: false, sub: '', scope: [], exp: 0 });
+  });
+
+  it('introspect() with token older than 15 min (maxTokenAge violation) → returns { active: false }', async () => {
+    vi.mocked(jose.jwtVerify).mockRejectedValue(new jose.errors.JWTClaimValidationFailed('maxTokenAge exceeded', {}, 'iat', 'check_failed'));
+
+    const result = await adapter.introspect('old-token');
+    expect(result).toEqual({ active: false, sub: '', scope: [], exp: 0 });
+  });
+
+  it('introspect() never throws — always returns TokenIntrospectionResult shape', async () => {
+    vi.mocked(jose.jwtVerify).mockRejectedValue(new Error('Unexpected arbitrary error'));
+
+    const result = await adapter.introspect('broken-token');
+    expect(result).toEqual({ active: false, sub: '', scope: [], exp: 0 });
+  });
 });

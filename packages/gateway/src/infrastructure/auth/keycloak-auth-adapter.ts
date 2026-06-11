@@ -57,25 +57,19 @@ export class KeycloakAuthAdapter implements IAuthPort {
   async introspect(raw: string): Promise<TokenIntrospectionResult> {
     try {
       const { payload } = await jose.jwtVerify(raw, this.jwksClient, {
-        issuer: this.issuer,
-        audience: this.audience,
-      });
-
-      const claims = AuthClaims.fromJwtPayload(payload);
-
+        issuer:      this.issuer,
+        audience:    this.audience,
+        maxTokenAge: '15 minutes',    // ← THIS WAS MISSING — now added
+      })
+      const scope = (payload['scope'] as string ?? '').split(' ').filter(Boolean)
       return {
         active: true,
-        sub: claims.sub,
-        scope: claims.scope,
-        exp: claims.exp,
-      };
+        sub:    payload.sub ?? '',
+        scope,
+        exp:    payload.exp ?? 0,
+      }
     } catch {
-      return {
-        active: false,
-        sub: '',
-        scope: [],
-        exp: 0,
-      };
+      return { active: false, sub: '', scope: [], exp: 0 }
     }
   }
 
