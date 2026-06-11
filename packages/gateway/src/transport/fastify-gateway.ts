@@ -1,3 +1,4 @@
+import { readFileSync } from 'fs';
 import Fastify, { FastifyInstance } from 'fastify';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
@@ -11,11 +12,33 @@ import { toolRoutes } from './routes/tool.routes';
 import { agentRoutes } from './routes/agent.routes';
 import { AuditEvent } from '../domain/audit-event';
 
+export function loadTlsOptions() {
+  const cert = process.env.UAP_MTLS_CERT;
+  const key = process.env.UAP_MTLS_KEY;
+  const ca = process.env.UAP_MTLS_CA;
+
+  if (!cert || !key) {
+    throw new Error('UAP_MTLS_CERT and UAP_MTLS_KEY are required. Plaintext HTTP is forbidden in UAP.');
+  }
+
+  return {
+    key: readFileSync(key),
+    cert: readFileSync(cert),
+    ca: ca ? readFileSync(ca) : undefined,
+    requestCert: !!ca,
+    rejectUnauthorized: !!ca,
+  };
+}
+
 /**
- * Builds and configures the Fastify gateway instance.
+ * Builds the UAP Fastify gateway with mandatory TLS.
+ * Requires UAP_MTLS_CERT and UAP_MTLS_KEY env vars.
+ * Set UAP_MTLS_CA to additionally enforce mutual TLS (mTLS).
  */
 export async function buildGateway(container: AppContainer): Promise<FastifyInstance> {
+  const tlsOptions = loadTlsOptions();
   const fastify = Fastify({
+    https: tlsOptions,
     logger: { level: 'info' },
     trustProxy: true,
     bodyLimit: 1_048_576, // 1MB

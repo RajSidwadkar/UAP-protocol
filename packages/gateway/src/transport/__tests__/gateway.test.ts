@@ -2,11 +2,31 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { buildGateway } from '../fastify-gateway';
 import { AppContainer } from '../../infrastructure/composition-root';
 import { AuthClaims } from '../../application/ports/i-auth-port';
+import { readFileSync } from 'fs';
+import Fastify from 'fastify';
+
+vi.mock('fs');
+vi.mock('fastify', async (importOriginal) => {
+  const original = await importOriginal<typeof import('fastify')>();
+  return {
+    ...original,
+    default: vi.fn((options) => {
+      // Strip https options for tests so inject() works without valid PEMs
+      const { https, ...rest } = options || {};
+      return original.default(rest);
+    }),
+  };
+});
 
 describe('Gateway', () => {
   let container: AppContainer;
 
   beforeEach(() => {
+    // Set required environment variables for TLS
+    process.env.UAP_MTLS_CERT = 'test-cert.pem';
+    process.env.UAP_MTLS_KEY = 'test-key.pem';
+    vi.mocked(readFileSync).mockReturnValue(Buffer.from('MOCK_CERT_DATA'));
+
     // Mock the container and all its dependencies
     container = {
       auth: {
