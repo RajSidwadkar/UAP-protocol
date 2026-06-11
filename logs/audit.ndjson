@@ -1,0 +1,1 @@
+{"level":30,"time":1781150671960,"pid":1,"hostname":"86bb1629e010","id":"01KTTDMS2PX9WBZR9T2J6KYEFV","kind":"GATEWAY_STARTED","timestamp":1781150671960,"traceId":"SYSTEM","callerId":"SYSTEM","resource":"http://0.0.0.0:3000","outcome":"success","metadata":{"node_version":"v20.20.2"}}

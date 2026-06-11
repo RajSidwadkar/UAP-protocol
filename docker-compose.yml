@@ -1,0 +1,46 @@
+services:
+  gateway:
+    image: uap-gateway:local
+    ports:
+      - "3000:3000"
+    environment:
+      - UAP_GATEWAY_PORT=3000
+      - UAP_HOST=0.0.0.0
+      - UAP_AUDIT_LOG_DIR=/app/packages/gateway/logs
+    volumes:
+      - ./certs:/app/packages/gateway/certs
+      - ./logs:/app/packages/gateway/logs
+    
+    build:
+      context: .
+      dockerfile: packages/gateway/Dockerfile
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    depends_on:
+      keycloak:
+        condition: service_healthy
+      jaeger:
+        condition: service_started
+    restart: unless-stopped
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0
+    command: start-dev
+    env_file:
+      - .env
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.57
+    ports:
+      - "16686:16686"
+      - "4318:4318"
+  

@@ -1,0 +1,9 @@
+node_modules
+src
+*.ts
+.env*
+*.hex
+certs/*.key
+dist
+.git
+.turbo
