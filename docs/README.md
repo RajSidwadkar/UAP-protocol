@@ -1,7 +1,7 @@
 
 
 <div align="center">
-  <img src="assets\vector_original_falcon.svg" alt="VECTOR — The UAP Gateway Falcon" width="600" />
+  <img src="assets/vector_original_falcon.svg" alt="VECTOR — The UAP Gateway Falcon" width="600" />
 
 
 </div>
@@ -339,7 +339,7 @@ Apache 2.0 — see [LICENSE](./LICENSE).
 
 <div align="center">
 
-<img src="assets\vector_original_falcon.svg" alt="VECTOR — The UAP Gateway Falcon" width="600" />
+<img src="assets/vector_original_falcon.svg" alt="VECTOR — The UAP Gateway Falcon" width="600" />
 
 *UAP · Universal Agent Protocol · 2026*
 
