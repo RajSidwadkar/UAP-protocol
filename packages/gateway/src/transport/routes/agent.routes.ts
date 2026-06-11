@@ -1,17 +1,17 @@
 import { FastifyPluginAsync } from 'fastify';
 import { AppContainer } from '../../infrastructure/composition-root';
-import { UapEnvelope } from '../../domain/envelope';
 import { CapabilityCard } from '../../domain/capability-card';
 import { UapCardTamperedError } from '../../domain/errors';
 import { AuditEvent } from '../../domain/audit-event';
 import { requireScope } from '../plugins/require-scope.plugin';
+import { validateEnvelope } from '../../domain/envelope';
 
 export const agentRoutes: FastifyPluginAsync<{ container: AppContainer }> = async (fastify, { container }) => {
   // Existing delegation route
   fastify.post('/delegate', {
     preHandler: requireScope(['task:submit']),
   }, async (request, _reply) => {
-    const envelope = request.body as UapEnvelope;
+    const envelope = validateEnvelope(request.body);
     const result = await container.delegateTask.execute(envelope);
     return result;
   });
@@ -20,7 +20,8 @@ export const agentRoutes: FastifyPluginAsync<{ container: AppContainer }> = asyn
   fastify.post('/registry/register', {
     preHandler: requireScope(['admin:write']),
   }, async (request, reply) => {
-    const { card, endpoint } = request.body as { card: CapabilityCard; endpoint: string };
+    const envelope = validateEnvelope(request.body);
+    const { card, endpoint } = envelope.params as { card: CapabilityCard; endpoint: string };
 
     const isValid = await container.signer.verify(card);
     if (!isValid) {
