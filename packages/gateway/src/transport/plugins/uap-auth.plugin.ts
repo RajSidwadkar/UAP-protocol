@@ -5,7 +5,7 @@ import { AuthClaims } from '../../application/ports/i-auth-port';
 
 declare module 'fastify' {
   interface FastifyRequest {
-    uapClaims?: AuthClaims;
+    uapClaims: AuthClaims | null;
   }
 }
 
@@ -13,12 +13,10 @@ export interface AuthPluginOptions {
   container: AppContainer;
 }
 
-const uapAuthPlugin: FastifyPluginAsync<AuthPluginOptions> = async (fastify, options) => {
-  const { container } = options;
+const uapAuthPlugin: FastifyPluginAsync<AuthPluginOptions> = async (app, opts) => {
+  app.decorateRequest('uapClaims', null);
 
-  fastify.decorateRequest('uapClaims', undefined);
-
-  fastify.addHook('preHandler', async (request, reply) => {
+  app.addHook('preHandler', async (request, reply) => {
     // Health check is public
     if (request.url === '/health' || request.url.startsWith('/health')) {
       return;
@@ -26,22 +24,21 @@ const uapAuthPlugin: FastifyPluginAsync<AuthPluginOptions> = async (fastify, opt
 
     const authHeader = request.headers.authorization;
     if (!authHeader) {
-      reply.code(401).send({ error: 'Missing Authorization header' });
-      return;
+      return reply.status(401).send({ error: 'Missing Authorization header' });
     }
 
+    // Extract Bearer token case-insensitive
     const [scheme, token] = authHeader.split(' ');
-    if (scheme !== 'Bearer' || !token) {
-      reply.code(401).send({ error: 'Invalid Authorization header format' });
-      return;
+    if (!scheme || !/^Bearer$/i.test(scheme) || !token) {
+      return reply.status(401).send({ error: 'Invalid Authorization header format' });
     }
 
     try {
-      const claims = await container.auth.verifyToken(token, []);
+      // Structural check only (signature, expiry, etc.)
+      const claims = await opts.container.auth.verifyToken(token, []);
       request.uapClaims = claims;
     } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-      reply.code(401).send({ error: errorMessage });
+      return reply.status(401).send({ error: (err as Error).message });
     }
   });
 };
