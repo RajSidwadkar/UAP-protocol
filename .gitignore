@@ -11,3 +11,6 @@ docker/sandbox/node_modules
 config/
 .DS_Store
 *.local
+logs/audit.ndjson
+__pycache__ 
+certs/signing.key
