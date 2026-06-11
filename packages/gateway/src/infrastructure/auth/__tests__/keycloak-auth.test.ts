@@ -34,10 +34,10 @@ describe('KeycloakAuthAdapter', () => {
     };
 
     vi.mocked(jose.jwtVerify).mockResolvedValue({ 
-      payload: mockPayload, 
-      protectedHeader: { alg: 'RS256' },
-      key: undefined as unknown as jose.KeyLike
-    });
+  payload: mockPayload, 
+  protectedHeader: { alg: 'RS256' },
+  key: { type: 'public' } as any as CryptoKey
+});
 
     const claims = await adapter.verifyToken('valid-token', ['tool:read']);
 
@@ -76,10 +76,10 @@ describe('KeycloakAuthAdapter', () => {
     };
 
     vi.mocked(jose.jwtVerify).mockResolvedValue({ 
-      payload: mockPayload, 
-      protectedHeader: { alg: 'RS256' },
-      key: undefined as unknown as jose.KeyLike
-    });
+  payload: mockPayload, 
+  protectedHeader: { alg: 'RS256' },
+  key: { type: 'public' } as any as CryptoKey
+});
 
     await expect(adapter.verifyToken('token-missing-scope', ['task:submit']))
       .rejects.toThrow(UapForbiddenError);
