@@ -97,8 +97,19 @@ describe('Gateway', () => {
         authorization: 'Bearer valid-token',
       },
       payload: {
-        uap: { id: '01ARZ3NDEKTSV4RRFFQ69G5FAV' },
+        uap: {
+          version: '1.0',
+          type: 'tool_call',
+          id: '01ARZ3NDEKTSV4RRFFQ69G5FAV',
+          trace: { traceparent: '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01' },
+          auth: {
+            token: 'valid-token',
+            scope: ['tool:read'],
+            card_sig: 'ed25519:abc'
+          }
+        },
         method: 'test/tool',
+        schema_ref: 'uap:test',
         params: {},
       },
     });
@@ -137,8 +148,19 @@ describe('Gateway', () => {
         authorization: 'Bearer valid-token',
       },
       payload: {
-        uap: { id: '01ARZ3NDEKTSV4RRFFQ69G5FAV' },
+        uap: {
+          version: '1.0',
+          type: 'tool_call',
+          id: '01ARZ3NDEKTSV4RRFFQ69G5FAV',
+          trace: { traceparent: '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01' },
+          auth: {
+            token: 'valid-token',
+            scope: ['tool:read'],
+            card_sig: 'ed25519:abc'
+          }
+        },
         method: 'test/tool',
+        schema_ref: 'uap:test',
         params: {},
       },
     });
@@ -150,5 +172,97 @@ describe('Gateway', () => {
         outcome: 'failure',
       })
     );
+  });
+
+  describe('Envelope validation at route boundary', () => {
+    const VALID_ENVELOPE = {
+      uap: {
+        version: '1.0',
+        type: 'tool_call',
+        id: '01ARZ3NDEKTSV4RRFFQ69G5FAV',
+        trace: { traceparent: '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01' },
+        auth: {
+          token: 'valid-token',
+          scope: ['tool:read'],
+          card_sig: 'ed25519:abc'
+        }
+      },
+      method: 'test/tool',
+      schema_ref: 'uap:test',
+      params: {},
+    };
+
+    it('1. POST /tools/invoke with empty body {} → HTTP 422 response', async () => {
+      const claims = new AuthClaims('user-1', ['tool:read'], 0, 0, 'iss');
+      vi.mocked(container.auth.verifyToken).mockResolvedValue(claims);
+      const gateway = await buildGateway(container);
+      const response = await gateway.inject({
+        method: 'POST',
+        url: '/tools/invoke',
+        headers: { authorization: 'Bearer valid-token' },
+        payload: {},
+      });
+      expect(response.statusCode).toBe(422);
+      expect(response.json().error).toContain('Envelope validation failed');
+    });
+
+    it('2. POST /tools/invoke with valid envelope → use-case called', async () => {
+      const claims = new AuthClaims('user-1', ['tool:read'], 0, 0, 'iss');
+      vi.mocked(container.auth.verifyToken).mockResolvedValue(claims);
+      vi.mocked(container.invokeTool.execute).mockResolvedValue({ result: 'ok' });
+      const gateway = await buildGateway(container);
+      const response = await gateway.inject({
+        method: 'POST',
+        url: '/tools/invoke',
+        headers: { authorization: 'Bearer valid-token' },
+        payload: VALID_ENVELOPE,
+      });
+      expect(response.statusCode).toBe(200);
+      expect(container.invokeTool.execute).toHaveBeenCalled();
+    });
+
+    it('3. POST /agent/delegate with malformed body (missing uap field) → HTTP 422 response', async () => {
+      const claims = new AuthClaims('user-1', ['task:submit'], 0, 0, 'iss');
+      vi.mocked(container.auth.verifyToken).mockResolvedValue(claims);
+      const gateway = await buildGateway(container);
+      const response = await gateway.inject({
+        method: 'POST',
+        url: '/agents/delegate',
+        headers: { authorization: 'Bearer valid-token' },
+        payload: { method: 'delegate' },
+      });
+      expect(response.statusCode).toBe(422);
+      expect(response.json().error).toContain('Envelope validation failed');
+    });
+
+    it('4. POST /agent/delegate with valid envelope → use-case called', async () => {
+      const claims = new AuthClaims('user-1', ['task:submit'], 0, 0, 'iss');
+      vi.mocked(container.auth.verifyToken).mockResolvedValue(claims);
+      vi.mocked(container.delegateTask.execute).mockResolvedValue({ result: 'ok' });
+      const gateway = await buildGateway(container);
+      const response = await gateway.inject({
+        method: 'POST',
+        url: '/agents/delegate',
+        headers: { authorization: 'Bearer valid-token' },
+        payload: { ...VALID_ENVELOPE, uap: { ...VALID_ENVELOPE.uap, type: 'agent_delegate' } },
+      });
+      expect(response.statusCode).toBe(200);
+      expect(container.delegateTask.execute).toHaveBeenCalled();
+    });
+
+    it('5. Validation error response body has shape: { error: <string containing "Envelope validation failed"> }', async () => {
+      const claims = new AuthClaims('user-1', ['tool:read'], 0, 0, 'iss');
+      vi.mocked(container.auth.verifyToken).mockResolvedValue(claims);
+      const gateway = await buildGateway(container);
+      const response = await gateway.inject({
+        method: 'POST',
+        url: '/tools/invoke',
+        headers: { authorization: 'Bearer valid-token' },
+        payload: { uap: { version: '1.0' } },
+      });
+      expect(response.json()).toMatchObject({
+        error: expect.stringContaining('Envelope validation failed'),
+      });
+    });
   });
 });
