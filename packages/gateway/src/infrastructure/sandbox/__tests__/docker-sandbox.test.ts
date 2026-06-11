@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, Mock } from 'vitest';
 import { DockerSandboxAdapter } from '../docker-sandbox-adapter';
-import { UapSandboxError } from '../../../domain/errors';
+import { UapSandboxError, UapValidationError } from '../../../domain/errors';
 
 vi.mock('dockerode', () => {
   const mockContainer = {
@@ -119,5 +119,38 @@ describe('DockerSandboxAdapter', () => {
     vi.mocked(mockContainer.remove).mockRejectedValueOnce(new Error('not found'));
     
     await expect(adapter.teardown('id')).resolves.toBeUndefined();
+  });
+
+  it('execute() with toolId \'db:query\' → does NOT throw (valid)', async () => {
+    await expect(adapter.execute('db:query', {}, [])).resolves.toBeDefined();
+  });
+
+  it('execute() with toolId \'my-tool_v2\' → does NOT throw (valid)', async () => {
+    await expect(adapter.execute('my-tool_v2', {}, [])).resolves.toBeDefined();
+  });
+
+  it('execute() with toolId \'../etc/passwd\' → throws UapValidationError', async () => {
+    await expect(adapter.execute('../etc/passwd', {}, [])).rejects.toThrow(UapValidationError);
+  });
+
+  it('execute() with toolId \'tool/hack\' → throws UapValidationError', async () => {
+    await expect(adapter.execute('tool/hack', {}, [])).rejects.toThrow(UapValidationError);
+  });
+
+  it('execute() with toolId \'tool hack\' (space) → throws UapValidationError', async () => {
+    await expect(adapter.execute('tool hack', {}, [])).rejects.toThrow(UapValidationError);
+  });
+
+  it('execute() with toolId longer than 128 chars → throws UapValidationError', async () => {
+    const longId = 'a'.repeat(129);
+    await expect(adapter.execute(longId, {}, [])).rejects.toThrow(UapValidationError);
+  });
+
+  it('execute() with toolId \'$()\' → throws UapValidationError', async () => {
+    await expect(adapter.execute('$()', {}, [])).rejects.toThrow(UapValidationError);
+  });
+
+  it('execute() with toolId \'..\\\\windows\\\\system32\' → throws UapValidationError', async () => {
+    await expect(adapter.execute('..\\windows\\system32', {}, [])).rejects.toThrow(UapValidationError);
   });
 });
