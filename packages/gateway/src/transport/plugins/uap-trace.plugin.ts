@@ -33,6 +33,6 @@ const uapTracePlugin: FastifyPluginAsync = async (fastify) => {
   });
 };
 
-export default fp(uapTracePlugin, {
+export default fp(uapTracePlugin as any, {
   name: 'uap-trace',
-});
+}) as any;

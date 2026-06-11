@@ -25,7 +25,7 @@ describe('Ed25519SignerAdapter', () => {
 
   beforeAll(() => {
     const privKey = randomBytes(32);
-    privKeyHex = Buffer.from(privKey).toString('hex');
+    privKeyHex = privKey.toString('hex');
     signer = new Ed25519SignerAdapter(privKeyHex);
   });
 

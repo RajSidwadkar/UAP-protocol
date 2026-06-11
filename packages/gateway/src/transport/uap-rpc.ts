@@ -48,7 +48,8 @@ export class UapRpcTransport {
 
   constructor() {
     this.ajv = new Ajv({ strict: true, allErrors: true });
-    addFormats(this.ajv);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    addFormats(this.ajv as any);
   }
 
   validate(envelope: UapEnvelope): void {

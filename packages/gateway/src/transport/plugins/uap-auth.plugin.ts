@@ -43,6 +43,6 @@ const uapAuthPlugin: FastifyPluginAsync<AuthPluginOptions> = async (app, opts) =
   });
 };
 
-export default fp(uapAuthPlugin, {
+export default fp(uapAuthPlugin as any, {
   name: 'uap-auth',
-});
+}) as any;

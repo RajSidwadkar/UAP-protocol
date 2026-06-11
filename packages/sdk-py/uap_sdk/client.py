@@ -11,6 +11,7 @@ from .envelope_builder import UapEnvelopeBuilder
 class UapClientOptions:
     gateway_url: str
     token_provider: ITokenProvider
+    card_sig: str
     tracer: Optional[ITracePort] = None
 
 
@@ -46,7 +47,7 @@ class UapClient:
         async def _request():
             return await self._request_with_retry(
                 "/tools/invoke",
-                lambda t: UapEnvelopeBuilder.tool_call(tool_id, input_, t, scope),
+                lambda t: UapEnvelopeBuilder.tool_call(tool_id, input_, t, scope, self.options.card_sig),
                 scope
             )
 
@@ -59,7 +60,7 @@ class UapClient:
         async def _request():
             return await self._request_with_retry(
                 "/agents/delegate",
-                lambda t: UapEnvelopeBuilder.agent_delegate(agent_id, input_, t, scope),
+                lambda t: UapEnvelopeBuilder.agent_delegate(agent_id, input_, t, scope, self.options.card_sig),
                 scope
             )
 

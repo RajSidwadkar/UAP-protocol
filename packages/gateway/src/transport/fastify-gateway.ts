@@ -6,6 +6,7 @@ import cors from '@fastify/cors';
 import { ulid } from 'ulid';
 import { AppContainer } from '../infrastructure/composition-root';
 import uapAuthPlugin from './plugins/uap-auth.plugin';
+import uapCardPlugin from './plugins/uap-card.plugin';
 import uapTracePlugin from './plugins/uap-trace.plugin';
 import healthRoutes from './routes/health.routes';
 import { toolRoutes } from './routes/tool.routes';
@@ -85,6 +86,7 @@ export async function buildGateway(container: AppContainer): Promise<FastifyInst
 
   // 2. Register UAP specific plugins
   await fastify.register(uapAuthPlugin, { container });
+  await fastify.register(uapCardPlugin, { container });
   await fastify.register(uapTracePlugin);
 
   // 3. Register routes

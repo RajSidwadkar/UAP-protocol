@@ -49,8 +49,11 @@ describe('Gateway', () => {
       registry: {
         register: vi.fn(),
         deregister: vi.fn(),
-        get: vi.fn(),
+        resolve: vi.fn(),
         list: vi.fn(),
+      },
+      rpcTransport: {
+        validate: vi.fn(),
       },
       invokeTool: {
         execute: vi.fn(),
@@ -59,6 +62,23 @@ describe('Gateway', () => {
         execute: vi.fn(),
       },
     } as unknown as AppContainer;
+
+    vi.mocked(container.registry.resolve).mockResolvedValue({
+      agentId: 'user-1',
+      endpoint: 'http://local',
+      card: {
+        issuer: 'user-1',
+        version: '1.0',
+        tools: [],
+        scopes: ['tool:read', 'task:submit'],
+        issuedAt: Date.now(),
+        expiresAt: Date.now() + 10000,
+        signature: 'ed25519:abc'
+      },
+      registeredAt: Date.now(),
+      lastHeartbeat: Date.now()
+    });
+    vi.mocked(container.signer.verify).mockResolvedValue(true);
   });
 
   it('GET /health returns 200 { status: "ok" }', async () => {

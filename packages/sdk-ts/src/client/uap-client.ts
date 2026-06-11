@@ -6,6 +6,7 @@ import { ITracePort } from './i-trace-port.js';
 export interface UapClientOptions {
   gatewayUrl: string;
   tokenProvider: ITokenProvider;
+  cardSig: string;
   tracer?: ITracePort;
 }
 
@@ -35,7 +36,13 @@ export class UapClient {
   ): Promise<TOutput> {
     const fn = () => this.requestWithRetry<TOutput>(
       `${this.options.gatewayUrl}/tools/invoke`,
-      () => UapEnvelopeBuilder.toolCall({ toolId, input, token: '', scope }),
+      () => UapEnvelopeBuilder.toolCall({ 
+        toolId, 
+        input, 
+        token: '', 
+        scope, 
+        cardSig: this.options.cardSig 
+      }),
       scope
     );
 
@@ -52,7 +59,13 @@ export class UapClient {
   ): Promise<Task<TArtifact>> {
     const fn = () => this.requestWithRetry<Task<TArtifact>>(
       `${this.options.gatewayUrl}/agents/delegate`,
-      () => UapEnvelopeBuilder.agentDelegate({ agentId, input, token: '', scope }),
+      () => UapEnvelopeBuilder.agentDelegate({ 
+        agentId, 
+        input, 
+        token: '', 
+        scope, 
+        cardSig: this.options.cardSig 
+      }),
       scope
     );
 

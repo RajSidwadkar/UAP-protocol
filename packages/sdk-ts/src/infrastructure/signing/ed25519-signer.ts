@@ -6,14 +6,18 @@ export class Ed25519SignerAdapter implements ICardSignerPort {
   private readonly pubKey: Uint8Array;
 
   constructor(privateKeyHex: string) {
-    this.privKey = Uint8Array.from(Buffer.from(privateKeyHex.trim(), 'hex'));
+    const buf = Buffer.from(privateKeyHex.trim(), 'hex');
+    this.privKey = new Uint8Array(buf.buffer as ArrayBuffer, buf.byteOffset, buf.byteLength);
     this.pubKey = ed25519.getPublicKey(this.privKey);
   }
 
   async sign(card: Omit<CapabilityCard, 'signature'>): Promise<CapabilityCard> {
     const canonicalJson = this.getCanonicalJson(card);
     const payload = Buffer.from(canonicalJson);
-    const sig = ed25519.sign(payload, this.privKey);
+    const sig = ed25519.sign(
+      new Uint8Array(payload.buffer as ArrayBuffer, payload.byteOffset, payload.byteLength),
+      this.privKey
+    );
     
     return {
       ...card,
@@ -34,7 +38,11 @@ export class Ed25519SignerAdapter implements ICardSignerPort {
       const canonicalJson = this.getCanonicalJson(rest);
       const payload = Buffer.from(canonicalJson);
       
-      return ed25519.verify(sig, payload, this.pubKey);
+      return ed25519.verify(
+        new Uint8Array(sig.buffer as ArrayBuffer, sig.byteOffset, sig.byteLength),
+        new Uint8Array(payload.buffer as ArrayBuffer, payload.byteOffset, payload.byteLength),
+        this.pubKey
+      );
     } catch {
       return false;
     }

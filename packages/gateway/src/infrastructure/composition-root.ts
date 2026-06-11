@@ -7,6 +7,7 @@ import { PinoAuditAdapter } from './audit/pino-audit-adapter';
 import { OtelTraceAdapter } from './trace/otel-trace-adapter';
 import { InMemoryRegistryAdapter } from './registry/in-memory-registry-adapter';
 import { RedisRegistryAdapter } from './registry/redis-registry-adapter';
+import { UapRpcTransport } from '../transport/uap-rpc';
 import { InvokeToolUseCase } from '../application/use-cases/invoke-tool.use-case';
 import { DelegateTaskUseCase } from '../application/use-cases/delegate-task.use-case';
 import { RouteToolCallUseCase } from '../application/use-cases/route-tool-call.use-case';
@@ -22,6 +23,7 @@ export interface AppContainer {
   sandbox: ISandboxPort;
   audit: IAuditPublisher;
   registry: IRegistryPort;
+  rpcTransport: UapRpcTransport;
   invokeTool: InvokeToolUseCase;
   delegateTask: DelegateTaskUseCase;
   routeToolCall: RouteToolCallUseCase;
@@ -74,8 +76,11 @@ export function buildContainer(): AppContainer {
     ? new RedisRegistryAdapter(env.REDIS_URL)
     : new InMemoryRegistryAdapter();
 
+  // 6. RPC Transport
+  const rpcTransport = new UapRpcTransport();
+
   // Use cases
-  const invokeTool = new InvokeToolUseCase(sandbox);
+  const invokeTool = new InvokeToolUseCase(sandbox, audit);
   const delegateTask = new DelegateTaskUseCase(registry);
   const routeToolCall = new RouteToolCallUseCase(registry, audit);
 
@@ -85,6 +90,7 @@ export function buildContainer(): AppContainer {
     sandbox,
     audit,
     registry,
+    rpcTransport,
     invokeTool,
     delegateTask,
     routeToolCall,

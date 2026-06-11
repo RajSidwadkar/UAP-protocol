@@ -19,6 +19,7 @@ def client_options(mock_token_provider):
     return UapClientOptions(
         gateway_url="http://gateway.local",
         token_provider=mock_token_provider,
+        card_sig="ed25519:test-sig",
     )
 
 
@@ -39,9 +40,10 @@ async def test_invoke_tool_success(client_options, mock_token_provider):
     # Check request body
     request_body = json.loads(route.calls.last.request.content)
     assert request_body["uap"]["type"] == "tool_call"
+    assert request_body["uap"]["auth"]["card_sig"] == "ed25519:test-sig"
     assert "traceparent" in request_body["uap"]["trace"]
     assert request_body["method"] == "tools/invoke"
-    assert request_body["params"] == {"arg1": "val1"}
+    assert request_body["params"] == {"tool_id": "test-tool", "input": {"arg1": "val1"}}
     
     # Check auth header
     assert route.calls.last.request.headers["Authorization"] == "Bearer valid-token"

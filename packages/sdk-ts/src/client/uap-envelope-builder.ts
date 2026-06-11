@@ -8,6 +8,7 @@ export class UapEnvelopeBuilder {
     input: unknown;
     token: string;
     scope: string[];
+    cardSig: string;
   }): UapEnvelope {
     const traceId = crypto.randomBytes(16).toString('hex');
     const spanId = crypto.randomBytes(8).toString('hex');
@@ -24,11 +25,15 @@ export class UapEnvelopeBuilder {
         auth: {
           token: params.token,
           scope: params.scope,
+          card_sig: params.cardSig,
         },
       },
       method: 'tools/invoke',
       schema_ref: 'uap:tool.invoke/v1',
-      params: params.input as Record<string, unknown>,
+      params: {
+        tool_id: params.toolId,
+        input: params.input as Record<string, unknown>,
+      },
       ack: true,
     };
   }
@@ -38,6 +43,7 @@ export class UapEnvelopeBuilder {
     input: unknown;
     token: string;
     scope: string[];
+    cardSig: string;
   }): UapEnvelope {
     const traceId = crypto.randomBytes(16).toString('hex');
     const spanId = crypto.randomBytes(8).toString('hex');
@@ -54,11 +60,15 @@ export class UapEnvelopeBuilder {
         auth: {
           token: params.token,
           scope: params.scope,
+          card_sig: params.cardSig,
         },
       },
       method: `${params.agentId}/task.submit`,
       schema_ref: 'uap:agent.delegate/v1',
-      params: params.input as Record<string, unknown>,
+      params: {
+        agent_id: params.agentId,
+        input: params.input as Record<string, unknown>,
+      },
       ack: true,
     };
   }

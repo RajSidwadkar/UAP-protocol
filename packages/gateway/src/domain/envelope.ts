@@ -1,9 +1,24 @@
 import { z } from 'zod';
 import { UapValidationError } from './errors';
+import { PermissionScope } from './capability-card';
 
 export const UlidSchema = z.string().regex(/^[0-9A-HJKMNP-TV-Z]{26}$/);
 
 export const TraceparentSchema = z.string().regex(/^00-[a-f0-9]{32}-[a-f0-9]{16}-[0-9a-f]{2}$/);
+
+const PermissionScopeSchema = z.enum([
+  'tool:read',
+  'tool:write',
+  'network:egress',
+  'fs:write',
+  'net:bind',
+  'sys:time',
+  'task:submit',
+  'task:read',
+  'task:cancel',
+  'admin:read',
+  'admin:write',
+]);
 
 export const UapHeaderSchema = z.object({
   version: z.literal('1.0'),
@@ -15,7 +30,7 @@ export const UapHeaderSchema = z.object({
   }),
   auth: z.object({
     token: z.string().min(1),
-    scope: z.array(z.string()).min(1),
+    scope: z.array(PermissionScopeSchema).min(1),
     card_sig: z.string().regex(/^ed25519:/),
   }),
 });

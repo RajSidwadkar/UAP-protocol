@@ -1,4 +1,4 @@
-import { ed25519 } from '@noble/curves/ed25519.js';
+import { ed25519 } from '@noble/curves/ed25519';
 import { CapabilityCard, ICardSignerPort } from '../../domain/capability-card';
 
 export class Ed25519SignerAdapter implements ICardSignerPort {
@@ -7,13 +7,16 @@ export class Ed25519SignerAdapter implements ICardSignerPort {
 
   constructor(privateKeyHex: string) {
     this.privKey = Buffer.from(privateKeyHex.trim(), 'hex');
-    this.pubKey = ed25519.getPublicKey(this.privKey);
+    this.pubKey = ed25519.getPublicKey(new Uint8Array(this.privKey.buffer as ArrayBuffer, this.privKey.byteOffset, this.privKey.byteLength));
   }
 
   async sign(card: Omit<CapabilityCard, 'signature'>): Promise<CapabilityCard> {
     const canonicalJson = this.getCanonicalJson(card);
     const payload = Buffer.from(canonicalJson);
-    const sig = ed25519.sign(payload, this.privKey);
+    const sig = ed25519.sign(
+      new Uint8Array(payload.buffer as ArrayBuffer, payload.byteOffset, payload.byteLength),
+      new Uint8Array(this.privKey.buffer as ArrayBuffer, this.privKey.byteOffset, this.privKey.byteLength)
+    );
     
     return {
       ...card,
@@ -34,7 +37,11 @@ export class Ed25519SignerAdapter implements ICardSignerPort {
       const canonicalJson = this.getCanonicalJson(rest);
       const payload = Buffer.from(canonicalJson);
       
-      return ed25519.verify(sig, payload, this.pubKey);
+      return ed25519.verify(
+        new Uint8Array(sig.buffer as ArrayBuffer, sig.byteOffset, sig.byteLength),
+        new Uint8Array(payload.buffer as ArrayBuffer, payload.byteOffset, payload.byteLength),
+        this.pubKey
+      );
     } catch {
       return false;
     }
