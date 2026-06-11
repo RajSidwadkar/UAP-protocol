@@ -1,12 +1,16 @@
 
-
 <div align="center">
-  <img src="assets/vector_original_falcon.svg" alt="VECTOR — The UAP Gateway Falcon" width="600" />
+  <img src="https://raw.githubusercontent.com/RajSidwadkar/UAP-protocol/main/assets/vector_original_falcon.svg" alt="VECTOR — The UAP Gateway Falcon" width="600" />
 
+  <br><br>
 
+  <h2><strong>Vector is a Peregrine Falcon.</strong></h2>
+  <h4>The fastest animal on the planet. Precision-guided.</h4>
+  <h4>Routes everything through a single decisive point.</h4>
+  <h3><em>That is what the UAP Gateway does.</em></h3>
+  
+  <br>
 </div>
-Vector is a Peregrine Falcon. The fastest animal on the planet. Precision-guided. Routes everything through a single decisive point. That is what the UAP Gateway does.
-
 
 <div align="center">
 
@@ -15,7 +19,7 @@ Vector is a Peregrine Falcon. The fastest animal on the planet. Precision-guided
  ██║   ██║██╔══██╗██╔══██╗
  ██║   ██║███████║██████╔╝
  ██║   ██║██╔══██║██╔═══╝
- ╚██████╔╝██║  ██║██║
+╚██████╔╝██║  ██║██║
   ╚═════╝ ╚═╝  ╚═╝╚═╝
 ```
 
@@ -339,7 +343,8 @@ Apache 2.0 — see [LICENSE](./LICENSE).
 
 <div align="center">
 
-<img src="assets/vector_original_falcon.svg" alt="VECTOR — The UAP Gateway Falcon" width="600" />
+
+  <img src="https://raw.githubusercontent.com/RajSidwadkar/UAP-protocol/main/assets/vector_original_falcon.svg" alt="VECTOR — The UAP Gateway Falcon" width="600" />
 
 *UAP · Universal Agent Protocol · 2026*
 
