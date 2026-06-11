@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { UapEnvelopeSchema } from '../envelope';
+import { UapEnvelopeSchema, validateEnvelope } from '../envelope';
 import { ZodError } from 'zod';
+import { UapValidationError } from '../errors';
 
 const VALID_FIXTURE = {
   uap: {
@@ -104,5 +105,39 @@ describe('UapEnvelopeSchema', () => {
     const { ack: _ack, ...omittedAck } = VALID_FIXTURE;
     const result = UapEnvelopeSchema.parse(omittedAck);
     expect(result.ack).toBe(false);
+  });
+
+  it('10. validateEnvelope() with a valid envelope → returns a UapEnvelope (does not throw)', () => {
+    const result = validateEnvelope(VALID_FIXTURE);
+    expect(result).toEqual(VALID_FIXTURE);
+  });
+
+  it('11. validateEnvelope() with an invalid envelope (empty object) → throws UapValidationError', () => {
+    expect(() => validateEnvelope({})).toThrow(UapValidationError);
+  });
+
+  it('12. validateEnvelope() throws UapValidationError (not a plain Error subclass) — verify with instanceof', () => {
+    try {
+      validateEnvelope({});
+    } catch (e) {
+      expect(e).toBeInstanceOf(UapValidationError);
+    }
+  });
+
+  it('13. validateEnvelope() error message contains the Zod path of the failing field', () => {
+    const invalid = { ...VALID_FIXTURE } as Record<string, unknown>;
+    delete invalid.uap;
+    try {
+      validateEnvelope(invalid);
+    } catch (e) {
+      const error = e as UapValidationError;
+      expect(error.message).toContain('uap: Required');
+    }
+  });
+
+  it('14. validateEnvelope() never returns null — verify the return type is non-nullable by asserting the returned value is truthy when input is valid', () => {
+    const result = validateEnvelope(VALID_FIXTURE);
+    expect(result).toBeTruthy();
+    // TypeScript should also treat `result` as non-nullable now
   });
 });

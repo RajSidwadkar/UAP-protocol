@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { UapValidationError } from './errors';
 
 export const UlidSchema = z.string().regex(/^[0-9A-HJKMNP-TV-Z]{26}$/);
 
@@ -42,17 +43,15 @@ export interface UapResponse {
 
 /**
  * Validates data against the UapEnvelopeSchema.
- * On failure, emits a structured console.warn as per requirements.
+ * Throws UapValidationError on failure.
  */
-export const validateEnvelope = (data: unknown): UapEnvelope | null => {
-  const result = UapEnvelopeSchema.safeParse(data);
+export function validateEnvelope(raw: unknown): UapEnvelope {
+  const result = UapEnvelopeSchema.safeParse(raw);
   if (!result.success) {
-    console.warn({
-      kind: 'SCHEMA_VIOLATION',
-      path: result.error.issues.map(i => i.path),
-      message: result.error.message,
-    });
-    return null;
+    const details = result.error.issues
+      .map(i => `${i.path.join('.')}: ${i.message}`)
+      .join('; ');
+    throw new UapValidationError(`Envelope validation failed — ${details}`);
   }
   return result.data;
-};
+}
