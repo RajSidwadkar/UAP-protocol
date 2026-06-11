@@ -16,6 +16,7 @@ describe('UapClient', () => {
     client = new UapClient({
       gatewayUrl,
       tokenProvider: mockTokenProvider,
+      cardSig: 'ed25519:test-sig',
     });
   });
 
@@ -32,8 +33,9 @@ describe('UapClient', () => {
     const body = JSON.parse(options!.body as string);
     expect(body.uap.type).toBe('tool_call');
     expect(body.uap.trace.traceparent).toBeDefined();
+    expect(body.uap.auth.card_sig).toBe('ed25519:test-sig');
     expect(body.method).toBe('tools/invoke');
-    expect(body.params).toEqual({ arg: 1 });
+    expect(body.params).toEqual({ tool_id: 'test-tool', input: { arg: 1 } });
   });
 
   it('invokeTool() -> Authorization header is "Bearer <token>"', async () => {

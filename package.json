@@ -15,15 +15,15 @@
     "prepare": "node -e \"try { if (process.env.NODE_ENV !== 'production') { require('child_process').execSync('husky', {stdio: 'inherit'}) } } catch (e) {}\""
   },
   "devDependencies": {
-    "@commitlint/cli": "^19.8.1",
-    "@commitlint/config-conventional": "^19.8.1",
-    "@noble/curves": "^2.2.0",
-    "@types/node": "^25.9.2",
-    "@typescript-eslint/eslint-plugin": "^7.18.0",
-    "@typescript-eslint/parser": "^7.18.0",
-    "eslint": "^8.57.1",
-    "husky": "^9.1.7",
-    "lint-staged": "^15.5.2",
-    "turbo": "^2.9.16"
+    "@commitlint/cli": "19.8.1",
+    "@commitlint/config-conventional": "19.8.1",
+    "@noble/curves": "2.2.0",
+    "@types/node": "25.9.2",
+    "@typescript-eslint/eslint-plugin": "7.18.0",
+    "@typescript-eslint/parser": "7.18.0",
+    "eslint": "8.57.1",
+    "husky": "9.1.7",
+    "lint-staged": "15.5.2",
+    "turbo": "2.9.16"
   }
 }

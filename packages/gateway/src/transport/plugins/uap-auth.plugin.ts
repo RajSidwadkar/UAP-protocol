@@ -43,6 +43,8 @@ const uapAuthPlugin: FastifyPluginAsync<AuthPluginOptions> = async (app, opts) =
   });
 };
 
-export default fp(uapAuthPlugin, {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export default fp(uapAuthPlugin as any, {
   name: 'uap-auth',
-});
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+}) as any;

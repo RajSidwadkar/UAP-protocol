@@ -12,6 +12,7 @@ export const agentRoutes: FastifyPluginAsync<{ container: AppContainer }> = asyn
     preHandler: requireScope(['task:submit']),
   }, async (request, _reply) => {
     const envelope = validateEnvelope(request.body);
+    container.rpcTransport.validate(envelope);
     const result = await container.delegateTask.execute(envelope);
     return result;
   });

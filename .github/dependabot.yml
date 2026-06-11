@@ -1,0 +1,30 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/packages/gateway"
+    schedule: { interval: "weekly" }
+    labels: ["dependencies", "security"]
+    open-pull-requests-limit: 3
+    reviewers:
+      - "uap-security-team"
+  - package-ecosystem: "npm"
+    directory: "/packages/sdk-ts"
+    schedule: { interval: "weekly" }
+    labels: ["dependencies", "security"]
+    open-pull-requests-limit: 3
+    reviewers:
+      - "uap-security-team"
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule: { interval: "weekly" }
+    labels: ["dependencies", "security"]
+    open-pull-requests-limit: 3
+    reviewers:
+      - "uap-security-team"
+  - package-ecosystem: "pip"
+    directory: "/packages/sdk-py"
+    schedule: { interval: "weekly" }
+    labels: ["dependencies", "security"]
+    open-pull-requests-limit: 3
+    reviewers:
+      - "uap-security-team"

@@ -8,6 +8,7 @@ export const toolRoutes: FastifyPluginAsync<{ container: AppContainer }> = async
     preHandler: requireScope(['tool:read']),
   }, async (request, _reply) => {
     const envelope = validateEnvelope(request.body);
+    container.rpcTransport.validate(envelope);
     const result = await container.invokeTool.execute(envelope);
     return result;
   });
