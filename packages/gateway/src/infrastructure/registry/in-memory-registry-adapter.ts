@@ -1,12 +1,13 @@
 import { CapabilityCard } from '../../domain/capability-card';
 import { IRegistryPort, RegistryEntry } from '../../application/ports/i-registry-port';
+import { UapValidationError } from '../../domain/errors';
 
 export class InMemoryRegistryAdapter implements IRegistryPort {
   private registry: Map<string, RegistryEntry> = new Map();
 
   async register(card: CapabilityCard, endpoint: string): Promise<void> {
     if (card.expiresAt <= Date.now()) {
-      throw new Error('Card is expired');
+      throw new UapValidationError('Card is expired');
     }
 
     const agentId = card.issuer;

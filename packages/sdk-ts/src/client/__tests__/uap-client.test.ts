@@ -115,4 +115,15 @@ describe('UapClient', () => {
     expect(mockTokenProvider.getToken).toHaveBeenCalledTimes(1);
     expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
   });
+
+  it('throws UapClientError(408) when fetch times out', async () => {
+    // Mock fetch to simulate AbortSignal timeout
+    const abortError = new Error('The operation was aborted');
+    abortError.name = 'TimeoutError';
+    vi.spyOn(globalThis, 'fetch').mockRejectedValueOnce(abortError);
+    await expect(client.invokeTool('test-tool', {}, ['tool:read'])).rejects.toMatchObject({
+      statusCode: 408,
+    });
+  });
 });
+
