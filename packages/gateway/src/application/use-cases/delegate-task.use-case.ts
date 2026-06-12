@@ -4,7 +4,7 @@ import { UapEnvelope } from '../../domain/envelope';
 export class DelegateTaskUseCase {
   constructor(private readonly registry: IRegistryPort) {}
 
-  async execute(envelope: UapEnvelope): Promise<unknown> {
+  async execute(envelope: UapEnvelope, callerId: string): Promise<unknown> {
     // Minimal implementation for delegation
     return { status: 'delegated', id: envelope.uap.id };
   }

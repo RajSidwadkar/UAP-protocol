@@ -13,7 +13,7 @@ export const agentRoutes: FastifyPluginAsync<{ container: AppContainer }> = asyn
   }, async (request, _reply) => {
     const envelope = validateEnvelope(request.body);
     container.rpcTransport.validate(envelope);
-    const result = await container.delegateTask.execute(envelope);
+    const result = await container.delegateTask.execute(envelope, request.callerId);
     return result;
   });
 

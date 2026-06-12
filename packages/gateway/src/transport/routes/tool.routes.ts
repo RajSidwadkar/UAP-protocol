@@ -9,7 +9,7 @@ export const toolRoutes: FastifyPluginAsync<{ container: AppContainer }> = async
   }, async (request, _reply) => {
     const envelope = validateEnvelope(request.body);
     container.rpcTransport.validate(envelope);
-    const result = await container.invokeTool.execute(envelope);
+    const result = await container.invokeTool.execute(envelope, request.callerId);
     return result;
   });
 };

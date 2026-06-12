@@ -6,6 +6,7 @@ import { AuthClaims } from '../../application/ports/i-auth-port';
 declare module 'fastify' {
   interface FastifyRequest {
     uapClaims: AuthClaims | null;
+    callerId: string;
   }
 }
 
@@ -15,6 +16,7 @@ export interface AuthPluginOptions {
 
 const uapAuthPlugin: FastifyPluginAsync<AuthPluginOptions> = async (app, opts) => {
   app.decorateRequest('uapClaims', null);
+  app.decorateRequest('callerId', '');
 
   app.addHook('preHandler', async (request, reply) => {
     // Health check is public
@@ -37,6 +39,7 @@ const uapAuthPlugin: FastifyPluginAsync<AuthPluginOptions> = async (app, opts) =
       // Structural check only (signature, expiry, etc.)
       const claims = await opts.container.auth.verifyToken(token, []);
       request.uapClaims = claims;
+      request.callerId = claims.sub;
     } catch (err: unknown) {
       return reply.status(401).send({ error: (err as Error).message });
     }
