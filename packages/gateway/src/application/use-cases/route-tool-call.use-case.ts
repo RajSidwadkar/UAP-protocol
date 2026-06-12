@@ -1,7 +1,7 @@
 import { IRegistryPort } from '../ports/i-registry-port';
 import { IAuditPublisher } from '../audit-event-bus';
 import { UapEnvelope, UapResponse } from '../../domain/envelope';
-import { UapAgentNotFoundError, UapSandboxError } from '../../domain/errors';
+import { UapAgentNotFoundError, UapSandboxError, UapValidationError } from '../../domain/errors';
 import { AuditEvent } from '../../domain/audit-event';
 
 export class RouteToolCallUseCase {
@@ -16,7 +16,7 @@ export class RouteToolCallUseCase {
     const toolId = parts[1];
 
     if (!agentId) {
-      throw new Error('Invalid envelope method: missing agentId');
+      throw new UapValidationError('Invalid envelope method: missing agentId segment');
     }
 
     const entry = await this.registry.resolve(agentId);

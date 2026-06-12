@@ -17,6 +17,8 @@ import { ISandboxPort } from '../application/ports/i-sandbox-port';
 import { IAuditPublisher } from '../application/audit-event-bus';
 import { IRegistryPort } from '../application/ports/i-registry-port';
 
+import { PinoLoggerAdapter } from './logging/pino-logger-adapter';
+
 export interface AppContainer {
   auth: IAuthPort;
   signer: ICardSignerPort;
@@ -35,6 +37,7 @@ export interface AppContainer {
  */
 export function buildContainer(): AppContainer {
   const env = process.env;
+  const appLogger = new PinoLoggerAdapter();
 
   // 1. KeycloakAuthAdapter
   const auth = new KeycloakAuthAdapter(
@@ -49,7 +52,7 @@ export function buildContainer(): AppContainer {
   try {
     signingKey = fs.readFileSync(signingKeyPath, 'utf8').trim();
   } catch (err) {
-    console.warn(`Warning: Could not read signing key at ${signingKeyPath}. Using empty string.`);
+    appLogger.warn(`Warning: Could not read signing key at ${signingKeyPath}. Using empty string.`);
   }
   const signer = new Ed25519SignerAdapter(signingKey);
 
@@ -59,13 +62,13 @@ export function buildContainer(): AppContainer {
   );
 
   // 4. AuditEventBus
-  const audit = new AuditEventBus();
+  const audit = new AuditEventBus(appLogger);
   const logDir = env.UAP_AUDIT_LOG_DIR || 'logs';
   if (!fs.existsSync(logDir)) {
     try {
       fs.mkdirSync(logDir, { recursive: true });
     } catch (err) {
-      console.error(`Failed to create audit log directory: ${logDir}`, err);
+      appLogger.error(`Failed to create audit log directory: ${logDir}`, { error: (err as Error).message });
     }
   }
   audit.subscribe(new PinoAuditAdapter(logDir));
