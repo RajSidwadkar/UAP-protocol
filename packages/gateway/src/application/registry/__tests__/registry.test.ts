@@ -102,7 +102,7 @@ describe('RouteToolCallUseCase', () => {
 
   it('unknown agentId throws UapAgentNotFoundError', async () => {
     vi.mocked(mockRegistry.resolve).mockResolvedValue(null);
-    await expect(useCase.execute(mockEnvelope)).rejects.toThrow(UapAgentNotFoundError);
+    await expect(useCase.execute(mockEnvelope, 'test-caller-id')).rejects.toThrow(UapAgentNotFoundError);
   });
 
   it('valid agent calls fetch with correct endpoint URL', async () => {
@@ -120,7 +120,7 @@ describe('RouteToolCallUseCase', () => {
     });
     vi.stubGlobal('fetch', mockFetch);
 
-    const result = await useCase.execute(mockEnvelope);
+    const result = await useCase.execute(mockEnvelope, 'test-caller-id');
     
     expect(mockFetch).toHaveBeenCalledWith('http://agent-1.local/uap', expect.objectContaining({
       method: 'POST',
@@ -146,6 +146,6 @@ describe('RouteToolCallUseCase', () => {
     });
     vi.stubGlobal('fetch', mockFetch);
 
-    await expect(useCase.execute(mockEnvelope)).rejects.toThrow(UapSandboxError);
+    await expect(useCase.execute(mockEnvelope, 'test-caller-id')).rejects.toThrow(UapSandboxError);
   });
 });

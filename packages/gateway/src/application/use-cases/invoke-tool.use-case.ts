@@ -9,7 +9,7 @@ export class InvokeToolUseCase {
     private readonly audit: IAuditPublisher
   ) {}
 
-  async execute(envelope: UapEnvelope): Promise<unknown> {
+  async execute(envelope: UapEnvelope, callerId: string): Promise<unknown> {
     const parts = envelope.method.split('/');
     const toolId = parts[1] || envelope.params.tool_id as string || 'unknown';
 
@@ -19,7 +19,7 @@ export class InvokeToolUseCase {
       this.audit.publish(AuditEvent.create({
         kind: 'TOOL_INVOKED',
         traceId: envelope.uap.trace.traceparent,
-        callerId: envelope.uap.auth.token, // Simplified
+        callerId: callerId, // Simplified
         resource: envelope.method,
         outcome: 'success',
         metadata: {
@@ -33,7 +33,7 @@ export class InvokeToolUseCase {
       this.audit.publish(AuditEvent.create({
         kind: 'TOOL_FAILED',
         traceId: envelope.uap.trace.traceparent,
-        callerId: envelope.uap.auth.token,
+        callerId: callerId,
         resource: envelope.method,
         outcome: 'failure',
         metadata: {

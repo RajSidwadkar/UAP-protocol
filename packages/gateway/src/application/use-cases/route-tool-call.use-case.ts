@@ -10,7 +10,7 @@ export class RouteToolCallUseCase {
     private readonly audit: IAuditPublisher
   ) {}
 
-  async execute(envelope: UapEnvelope): Promise<UapResponse> {
+  async execute(envelope: UapEnvelope, callerId: string): Promise<UapResponse> {
     const parts = envelope.method.split('/');
     const agentId = parts[0];
     const toolId = parts[1];
@@ -45,7 +45,7 @@ export class RouteToolCallUseCase {
       this.audit.publish(AuditEvent.create({
         kind: 'TOOL_INVOKED',
         traceId: envelope.uap.trace.traceparent,
-        callerId: envelope.uap.auth.token, // Simplified callerId from token
+        callerId: callerId, // Simplified callerId from token
         resource: agentId,
         outcome: 'success',
         metadata: {
