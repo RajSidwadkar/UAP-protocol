@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { InMemoryRegistryAdapter } from '../../../infrastructure/registry/in-memory-registry-adapter';
-import { RouteToolCallUseCase } from '../../use-cases/route-tool-call.use-case';
+import { InMemoryRegistryAdapter } from '../in-memory-registry-adapter';
+import { RouteToolCallUseCase } from '../../../application/use-cases/route-tool-call.use-case';
 import { CapabilityCard } from '../../../domain/capability-card';
 import { UapAgentNotFoundError, UapSandboxError } from '../../../domain/errors';
 import { UapEnvelope } from '../../../domain/envelope';
-import { IAuditPublisher } from '../../audit-event-bus';
-import { IRegistryPort } from '../../ports/i-registry-port';
+import { IAuditPublisher } from '../../../application/audit-event-bus';
+import { IRegistryPort } from '../../../application/ports/i-registry-port';
 
 describe('InMemoryRegistryAdapter', () => {
   let adapter: InMemoryRegistryAdapter;

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { randomBytes } from 'crypto';
-import { Ed25519SignerAdapter } from '../../infrastructure/signing/ed25519-signer';
-import { CapabilityCard } from '../capability-card';
+import { Ed25519SignerAdapter } from '../ed25519-signer';
+import type { CapabilityCard } from '../../../domain/capability-card';
 
 describe('Ed25519SignerAdapter', () => {
   let signer: Ed25519SignerAdapter;
