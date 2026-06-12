@@ -11,7 +11,8 @@ export class KeycloakAuthAdapter implements IAuthPort {
     this.issuer = `${keycloakUrl}/realms/${realm}`;
     this.audience = audience;
     this.jwksClient = jose.createRemoteJWKSet(
-      new URL(`${this.issuer}/protocol/openid-connect/certs`)
+      new URL(`${this.issuer}/protocol/openid-connect/certs`),
+      { timeoutDuration: 5_000 }
     );
   }
 

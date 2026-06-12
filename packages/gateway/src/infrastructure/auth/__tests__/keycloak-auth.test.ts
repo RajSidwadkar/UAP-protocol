@@ -97,7 +97,7 @@ describe('KeycloakAuthAdapter', () => {
   it('should create JWKS client only once in constructor', () => {
     expect(jose.createRemoteJWKSet).toHaveBeenCalledTimes(1);
     const jwksUrl = new URL(`${keycloakUrl}/realms/${realm}/protocol/openid-connect/certs`);
-    expect(jose.createRemoteJWKSet).toHaveBeenCalledWith(jwksUrl);
+    expect(jose.createRemoteJWKSet).toHaveBeenCalledWith(jwksUrl, { timeoutDuration: 5_000 });
     
     // Create another adapter to see call count increase
     new KeycloakAuthAdapter(keycloakUrl, realm, audience);

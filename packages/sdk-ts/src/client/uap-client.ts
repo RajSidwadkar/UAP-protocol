@@ -85,14 +85,23 @@ export class UapClient {
     const envelope = envelopeFactory();
     envelope.uap.auth.token = token;
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(envelope),
-    });
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        signal: AbortSignal.timeout(30_000),
+        body: JSON.stringify(envelope),
+      });
+    } catch (err) {
+      if ((err as Error).name === 'TimeoutError') {
+        throw new UapClientError(408, 'Request timeout after 30s');
+      }
+      throw err;
+    }
 
     if (response.status === 401 && !isRetry) {
       this.options.tokenProvider.clearCache();

@@ -41,10 +41,11 @@ export class DockerSandboxAdapter implements ISandboxPort {
     const CapDrop = ['ALL'];
     const CapAdd = this.scopeToCapabilities(scope);
 
+    let container: Docker.Container | null = null;
     try {
       console.info({ kind: 'SANDBOX_CREATED', toolId, durationMs: 0 });
 
-      const container = await this.docker.createContainer({
+      container = await this.docker.createContainer({
         Image: this.baseImage,
         Cmd: ['node', '/tool/runner.js', toolId, JSON.stringify(input)],
         NetworkDisabled,
@@ -83,6 +84,10 @@ export class DockerSandboxAdapter implements ISandboxPort {
       }
       const message = err instanceof Error ? err.message : String(err);
       throw new UapSandboxError(`Sandbox execution failed: ${message}`);
+    } finally {
+      if (container) {
+        await this.teardown(container.id).catch(() => {});
+      }
     }
   }
 

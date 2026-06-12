@@ -57,3 +57,10 @@ export class UapUnknownSchemaRefError extends UapError {
     super(`Unknown schema_ref: ${ref}`, 400, 'UAP_UNKNOWN_SCHEMA_REF');
   }
 }
+
+export class UapRegistryError extends UapError {
+  constructor(message: string) {
+    super(message, 503, 'UAP_REGISTRY_ERROR');
+  }
+}
+

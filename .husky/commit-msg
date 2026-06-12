@@ -1,2 +1,1 @@
-git checkout main
 npx commitlint --edit $1

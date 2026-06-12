@@ -1,6 +1,7 @@
 import Redis from 'ioredis';
 import { CapabilityCard } from '../../domain/capability-card';
 import { IRegistryPort, RegistryEntry } from '../../application/ports/i-registry-port';
+import { UapRegistryError, UapValidationError } from '../../domain/errors';
 
 export class RedisRegistryAdapter implements IRegistryPort {
   private readonly redis: Redis;
@@ -11,14 +12,14 @@ export class RedisRegistryAdapter implements IRegistryPort {
 
   async register(card: CapabilityCard, endpoint: string): Promise<void> {
     if (card.expiresAt <= Date.now()) {
-      throw new Error('Card is expired');
+      throw new UapValidationError('Card is expired');
     }
 
     const agentId = card.issuer;
     const ttlSeconds = Math.floor((card.expiresAt - Date.now()) / 1000);
 
     if (ttlSeconds <= 0) {
-      throw new Error('Card is expired or has very short TTL');
+      throw new UapValidationError('Card is expired or has very short TTL');
     }
 
     const now = Date.now();
@@ -34,16 +35,26 @@ export class RedisRegistryAdapter implements IRegistryPort {
       lastHeartbeat: now,
     };
 
-    await this.redis.set(
-      `registry:${agentId}`,
-      JSON.stringify(entry),
-      'EX',
-      ttlSeconds
-    );
+    try {
+      await this.redis.set(
+        `registry:${agentId}`,
+        JSON.stringify(entry),
+        'EX',
+        ttlSeconds
+      );
+    } catch (err) {
+      throw new UapRegistryError(`Registry write failed: ${(err as Error).message}`);
+    }
   }
 
   async resolve(agentId: string): Promise<RegistryEntry | null> {
-    const data = await this.redis.get(`registry:${agentId}`);
+    let data: string | null;
+    try {
+      data = await this.redis.get(`registry:${agentId}`);
+    } catch (err) {
+      throw new UapRegistryError(`Registry read failed: ${(err as Error).message}`);
+    }
+
     if (!data) {
       return null;
     }
@@ -56,28 +67,44 @@ export class RedisRegistryAdapter implements IRegistryPort {
       lastHeartbeat: Date.now(),
     };
     
-    const ttlSeconds = await this.redis.ttl(`registry:${agentId}`);
-    if (ttlSeconds > 0) {
-      await this.redis.set(
-        `registry:${agentId}`,
-        JSON.stringify(updatedEntry),
-        'EX',
-        ttlSeconds
-      );
+    try {
+      const ttlSeconds = await this.redis.ttl(`registry:${agentId}`);
+      if (ttlSeconds > 0) {
+        await this.redis.set(
+          `registry:${agentId}`,
+          JSON.stringify(updatedEntry),
+          'EX',
+          ttlSeconds
+        );
+      }
+    } catch (err) {
+      throw new UapRegistryError(`Registry update failed: ${(err as Error).message}`);
     }
 
     return updatedEntry;
   }
 
   async list(): Promise<RegistryEntry[]> {
-    const keys = await this.redis.keys('registry:*');
+    let keys: string[];
+    try {
+      keys = await this.redis.keys('registry:*');
+    } catch (err) {
+      throw new UapRegistryError(`Registry list keys failed: ${(err as Error).message}`);
+    }
+
     if (keys.length === 0) {
       return [];
     }
 
     const pipeline = this.redis.pipeline();
     keys.forEach(key => pipeline.get(key));
-    const results = await pipeline.exec();
+    
+    let results: [Error | null, unknown][] | null;
+    try {
+      results = await pipeline.exec();
+    } catch (err) {
+      throw new UapRegistryError(`Registry pipeline exec failed: ${(err as Error).message}`);
+    }
 
     return (results || [])
       .map(([err, data]) => {
@@ -88,6 +115,11 @@ export class RedisRegistryAdapter implements IRegistryPort {
   }
 
   async deregister(agentId: string): Promise<void> {
-    await this.redis.del(`registry:${agentId}`);
+    try {
+      await this.redis.del(`registry:${agentId}`);
+    } catch (err) {
+      throw new UapRegistryError(`Registry delete failed: ${(err as Error).message}`);
+    }
   }
 }
+
