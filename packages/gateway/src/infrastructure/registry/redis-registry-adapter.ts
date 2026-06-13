@@ -3,11 +3,40 @@ import { CapabilityCard } from '../../domain/capability-card';
 import { IRegistryPort, RegistryEntry } from '../../application/ports/i-registry-port';
 import { UapRegistryError, UapValidationError } from '../../domain/errors';
 
+class TtlCache<V> {
+  private store = new Map<string, { value: V; expiresAt: number }>()
+  private readonly ttlMs: number
+
+  constructor(ttlMs: number) {
+    this.ttlMs = ttlMs
+  }
+
+  get(key: string): V | undefined {
+    const entry = this.store.get(key)
+    if (!entry) return undefined
+    if (Date.now() > entry.expiresAt) {
+      this.store.delete(key)
+      return undefined
+    }
+    return entry.value
+  }
+
+  set(key: string, value: V): void {
+    this.store.set(key, { value, expiresAt: Date.now() + this.ttlMs })
+  }
+
+  delete(key: string): void {
+    this.store.delete(key)
+  }
+}
+
 export class RedisRegistryAdapter implements IRegistryPort {
   private readonly redis: Redis;
+  private readonly cache: TtlCache<RegistryEntry>;
 
   constructor(redisUrl: string) {
     this.redis = new Redis(redisUrl);
+    this.cache = new TtlCache(5_000); // 5 second TTL
   }
 
   async register(card: CapabilityCard, endpoint: string): Promise<void> {
@@ -42,12 +71,18 @@ export class RedisRegistryAdapter implements IRegistryPort {
         'EX',
         ttlSeconds
       );
+      this.cache.set(agentId, entry);
     } catch (err) {
       throw new UapRegistryError(`Registry write failed: ${(err as Error).message}`);
     }
   }
 
   async resolve(agentId: string): Promise<RegistryEntry | null> {
+    const cached = this.cache.get(agentId);
+    if (cached) {
+      return cached;
+    }
+
     let data: string | null;
     try {
       data = await this.redis.get(`registry:${agentId}`);
@@ -77,6 +112,7 @@ export class RedisRegistryAdapter implements IRegistryPort {
           ttlSeconds
         );
       }
+      this.cache.set(agentId, updatedEntry);
     } catch (err) {
       throw new UapRegistryError(`Registry update failed: ${(err as Error).message}`);
     }
@@ -117,6 +153,7 @@ export class RedisRegistryAdapter implements IRegistryPort {
   async deregister(agentId: string): Promise<void> {
     try {
       await this.redis.del(`registry:${agentId}`);
+      this.cache.delete(agentId);
     } catch (err) {
       throw new UapRegistryError(`Registry delete failed: ${(err as Error).message}`);
     }

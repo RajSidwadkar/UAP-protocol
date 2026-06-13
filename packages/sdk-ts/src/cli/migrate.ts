@@ -6,7 +6,7 @@ import { McpBridgeAdapter } from '../bridges/mcp-bridge.js';
 import { A2aBridgeAdapter, A2aAgentCard } from '../bridges/a2a-bridge.js';
 import { Ed25519SignerAdapter } from '../infrastructure/signing/ed25519-signer.js';
 
-const program = new Command();
+export const program = new Command();
 
 program
   .name('uap-migrate')
@@ -115,4 +115,12 @@ program
     }
   });
 
-program.parseAsync(process.argv);
+// Only run automatically if this file is the main entry point
+const isMain = process.argv[1] && (
+  path.resolve(process.argv[1]) === path.resolve(import.meta.url.replace('file:///', '').replace('file://', '')) ||
+  path.resolve(process.argv[1]) === path.resolve(process.cwd(), 'src/cli/migrate.ts')
+);
+
+if (isMain) {
+  program.parseAsync(process.argv);
+}
