@@ -114,7 +114,7 @@ describe('Gateway', () => {
       method: 'POST',
       url: '/tools/invoke',
       headers: {
-        authorization: 'Bearer valid-token',
+        authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyLTEiLCJleHAiOjQwNzY2MDAwMDB9.sig',
       },
       payload: {
         uap: {
@@ -123,7 +123,7 @@ describe('Gateway', () => {
           id: '01ARZ3NDEKTSV4RRFFQ69G5FAV',
           trace: { traceparent: '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01' },
           auth: {
-            token: 'valid-token',
+            token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyLTEiLCJleHAiOjQwNzY2MDAwMDB9.sig',
             scope: ['tool:read'],
             card_sig: 'ed25519:abc'
           }
@@ -146,7 +146,7 @@ describe('Gateway', () => {
       method: 'POST',
       url: '/tools/invoke',
       headers: {
-        authorization: 'Bearer valid-token',
+        authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyLTEiLCJleHAiOjQwNzY2MDAwMDB9.sig',
       },
       payload: { data: largeBody },
     });
@@ -165,7 +165,7 @@ describe('Gateway', () => {
       method: 'POST',
       url: '/tools/invoke',
       headers: {
-        authorization: 'Bearer valid-token',
+        authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyLTEiLCJleHAiOjQwNzY2MDAwMDB9.sig',
       },
       payload: {
         uap: {
@@ -174,7 +174,7 @@ describe('Gateway', () => {
           id: '01ARZ3NDEKTSV4RRFFQ69G5FAV',
           trace: { traceparent: '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01' },
           auth: {
-            token: 'valid-token',
+            token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyLTEiLCJleHAiOjQwNzY2MDAwMDB9.sig',
             scope: ['tool:read'],
             card_sig: 'ed25519:abc'
           }
@@ -202,7 +202,7 @@ describe('Gateway', () => {
         id: '01ARZ3NDEKTSV4RRFFQ69G5FAV',
         trace: { traceparent: '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01' },
         auth: {
-          token: 'valid-token',
+          token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyLTEiLCJleHAiOjQwNzY2MDAwMDB9.sig',
           scope: ['tool:read'],
           card_sig: 'ed25519:abc'
         }
@@ -219,7 +219,7 @@ describe('Gateway', () => {
       const response = await gateway.inject({
         method: 'POST',
         url: '/tools/invoke',
-        headers: { authorization: 'Bearer valid-token' },
+        headers: { authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyLTEiLCJleHAiOjQwNzY2MDAwMDB9.sig' },
         payload: {},
       });
       expect(response.statusCode).toBe(422);
@@ -234,7 +234,7 @@ describe('Gateway', () => {
       const response = await gateway.inject({
         method: 'POST',
         url: '/tools/invoke',
-        headers: { authorization: 'Bearer valid-token' },
+        headers: { authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyLTEiLCJleHAiOjQwNzY2MDAwMDB9.sig' },
         payload: VALID_ENVELOPE,
       });
       expect(response.statusCode).toBe(200);
@@ -248,7 +248,7 @@ describe('Gateway', () => {
       const response = await gateway.inject({
         method: 'POST',
         url: '/agents/delegate',
-        headers: { authorization: 'Bearer valid-token' },
+        headers: { authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyLTEiLCJleHAiOjQwNzY2MDAwMDB9.sig' },
         payload: { method: 'delegate' },
       });
       expect(response.statusCode).toBe(422);
@@ -263,7 +263,7 @@ describe('Gateway', () => {
       const response = await gateway.inject({
         method: 'POST',
         url: '/agents/delegate',
-        headers: { authorization: 'Bearer valid-token' },
+        headers: { authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyLTEiLCJleHAiOjQwNzY2MDAwMDB9.sig' },
         payload: { ...VALID_ENVELOPE, uap: { ...VALID_ENVELOPE.uap, type: 'agent_delegate' } },
       });
       expect(response.statusCode).toBe(200);
@@ -277,7 +277,7 @@ describe('Gateway', () => {
       const response = await gateway.inject({
         method: 'POST',
         url: '/tools/invoke',
-        headers: { authorization: 'Bearer valid-token' },
+        headers: { authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyLTEiLCJleHAiOjQwNzY2MDAwMDB9.sig' },
         payload: { uap: { version: '1.0' } },
       });
       expect(response.json()).toMatchObject({

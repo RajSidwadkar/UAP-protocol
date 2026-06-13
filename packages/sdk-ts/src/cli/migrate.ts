@@ -6,6 +6,15 @@ import { McpBridgeAdapter } from '../bridges/mcp-bridge.js';
 import { A2aBridgeAdapter, A2aAgentCard } from '../bridges/a2a-bridge.js';
 import { Ed25519SignerAdapter } from '../infrastructure/signing/ed25519-signer.js';
 
+class MigrationError extends Error {
+  readonly code = 'UAP_MIGRATION_ERROR';
+  readonly exitCode = 1;
+  constructor(message: string) {
+    super(message);
+    this.name = 'MigrationError';
+  }
+}
+
 export const program = new Command();
 
 program
@@ -29,7 +38,7 @@ async function ensureSigner(keyPath: string): Promise<Ed25519SignerAdapter> {
     return new Ed25519SignerAdapter(keyHex);
   } catch (err: unknown) {
     const errorMessage = err instanceof Error ? err.message : String(err);
-    throw new Error(`Failed to read key from ${keyPath}: ${errorMessage}`);
+    throw new MigrationError(`Failed to read key from ${keyPath}: ${errorMessage}`);
   }
 }
 
@@ -67,9 +76,18 @@ program
       
       // MCP bridge keeps connection open, need to disconnect
       await bridge.disconnect();
-    } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : String(err);
-      logStderr('MIGRATION_FAILED', serverUrl, 0, outputPath, errorMessage);
+    } catch (err) {
+      if (err instanceof MigrationError) {
+        process.stderr.write(
+          JSON.stringify({ event: 'MIGRATION_FAILED', error: err.message }) + '\n'
+        );
+        process.exit(1);
+      }
+      // Re-throw unexpected errors
+      const msg = err instanceof Error ? err.message : String(err);
+      process.stderr.write(
+        JSON.stringify({ event: 'MIGRATION_FAILED', error: msg }) + '\n'
+      );
       process.exit(1);
     }
   });
@@ -108,9 +126,18 @@ program
       const finalOutputPath = path.join(outDir, `${card.issuer}.card.json`);
       fs.writeFileSync(finalOutputPath, JSON.stringify(card, null, 2));
       logStderr('MIGRATION_COMPLETED', jsonPath, card.tools.length, finalOutputPath);
-    } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : String(err);
-      logStderr('MIGRATION_FAILED', jsonPath, 0, outputPath, errorMessage);
+    } catch (err) {
+      if (err instanceof MigrationError) {
+        process.stderr.write(
+          JSON.stringify({ event: 'MIGRATION_FAILED', error: err.message }) + '\n'
+        );
+        process.exit(1);
+      }
+      // Re-throw unexpected errors
+      const msg = err instanceof Error ? err.message : String(err);
+      process.stderr.write(
+        JSON.stringify({ event: 'MIGRATION_FAILED', error: msg }) + '\n'
+      );
       process.exit(1);
     }
   });

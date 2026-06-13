@@ -1,12 +1,17 @@
 import { FastifyPluginAsync } from 'fastify';
 import fp from 'fastify-plugin';
+import { decodeJwt } from 'jose';
 import { AppContainer } from '../../infrastructure/composition-root';
 import { AuthClaims } from '../../application/ports/i-auth-port';
 
 declare module 'fastify' {
+  interface FastifyInstance {
+    uapContainer: AppContainer;
+  }
   interface FastifyRequest {
     uapClaims: AuthClaims | null;
     callerId: string;
+    uapRawToken: string;
   }
 }
 
@@ -15,33 +20,34 @@ export interface AuthPluginOptions {
 }
 
 const uapAuthPlugin: FastifyPluginAsync<AuthPluginOptions> = async (app, opts) => {
+  app.decorate('uapContainer', opts.container);
   app.decorateRequest('uapClaims', null);
   app.decorateRequest('callerId', '');
+  app.decorateRequest('uapRawToken', '');
 
-  app.addHook('preHandler', async (request, reply) => {
+  app.addHook('onRequest', async (request, reply) => {
     // Health check is public
     if (request.url === '/health' || request.url.startsWith('/health')) {
       return;
     }
 
-    const authHeader = request.headers.authorization;
-    if (!authHeader) {
-      return reply.status(401).send({ error: 'Missing Authorization header' });
+    const authHeader = request.headers['authorization'];
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      // Skip — requireScope will reject if route needs auth
+      return;
     }
 
-    // Extract Bearer token case-insensitive
-    const [scheme, token] = authHeader.split(' ');
-    if (!scheme || !/^Bearer$/i.test(scheme) || !token) {
-      return reply.status(401).send({ error: 'Invalid Authorization header format' });
-    }
-
+    const token = authHeader.slice(7);
     try {
-      // Structural check only (signature, expiry, etc.)
-      const claims = await opts.container.auth.verifyToken(token, []);
-      request.uapClaims = claims;
-      request.callerId = claims.sub;
-    } catch (err: unknown) {
-      return reply.status(401).send({ error: (err as Error).message });
+      const payload = decodeJwt(token);
+      const now = Math.floor(Date.now() / 1000);
+      if (payload.exp && payload.exp < now) {
+        return reply.status(401).send({ error: 'Token expired' });
+      }
+      // Store raw token string for requireScope to use
+      request.uapRawToken = token;
+    } catch {
+      return reply.status(401).send({ error: 'Malformed token' });
     }
   });
 };
