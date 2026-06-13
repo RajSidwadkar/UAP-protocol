@@ -134,10 +134,16 @@ export class DockerSandboxAdapter implements ISandboxPort {
         
         // dockerode exec stream is multiplexed if TTY is false
         this.docker.modem.demuxStream(stream, {
-          write: (chunk: Buffer) => { stdout += chunk.toString(); }
-        }, {
-          write: (chunk: Buffer) => { stderr += chunk.toString(); }
-        });
+          write: (chunk: Buffer | string) => { 
+            stdout += chunk.toString();
+            return true;
+          }
+        } as any, {
+          write: (chunk: Buffer | string) => { 
+            stderr += chunk.toString();
+            return true;
+          }
+        } as any);
 
         stream.on('end', () => resolve({ stdout, stderr }));
         stream.on('error', (err) => reject(err));
