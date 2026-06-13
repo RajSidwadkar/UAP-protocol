@@ -2,7 +2,7 @@ import { ISandboxPort } from '../ports/i-sandbox-port';
 import { UapEnvelope } from '../../domain/envelope';
 import { IAuditPublisher } from '../audit-event-bus';
 import { AuditEvent } from '../../domain/audit-event';
-import { UapError, UapSandboxError } from '../../domain/errors';
+import { UapError, UapSandboxError, UapValidationError } from '../../domain/errors';
 
 export class InvokeToolUseCase {
   constructor(
@@ -11,11 +11,13 @@ export class InvokeToolUseCase {
   ) {}
 
   async execute(envelope: UapEnvelope, callerId: string): Promise<unknown> {
-    const parts = envelope.method.split('/');
-    const toolId = parts[1] || envelope.params.tool_id as string || 'unknown';
+    const toolId = envelope.params['tool_id'] as string;
+    if (!toolId) {
+      throw new UapValidationError('Missing params.tool_id');
+    }
 
     try {
-      const result = await this.sandbox.execute(envelope.method, envelope.params, envelope.uap.auth.scope);
+      const result = await this.sandbox.execute(toolId, envelope.params, envelope.uap.auth.scope);
       
       this.audit.publish(AuditEvent.create({
         kind: 'TOOL_INVOKED',

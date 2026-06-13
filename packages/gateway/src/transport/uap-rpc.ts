@@ -28,6 +28,14 @@ export class BuiltinSchemaRegistry {
         input: { type: 'object' },
       },
     },
+    'uap:registry.register/v1': {
+      type: 'object',
+      required: ['card', 'endpoint'],
+      properties: {
+        card: { type: 'object' },
+        endpoint: { type: 'string', format: 'uri' },
+      },
+    },
     'uap:stream.open/v1': {
       type: 'object',
       required: ['channel_id'],

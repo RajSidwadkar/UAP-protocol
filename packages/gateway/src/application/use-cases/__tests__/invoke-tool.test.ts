@@ -52,6 +52,7 @@ describe('InvokeToolUseCase', () => {
       exitCode: 0,
       durationMs: 100,
     });
+    expect(mockSandbox.execute).toHaveBeenCalledWith('weather', mockEnvelope.params, mockEnvelope.uap.auth.scope);
     expect(mockAudit.publish).toHaveBeenCalledWith(expect.objectContaining({
       kind: 'TOOL_INVOKED',
       outcome: 'success',

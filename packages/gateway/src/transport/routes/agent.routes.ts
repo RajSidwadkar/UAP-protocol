@@ -34,6 +34,10 @@ export const agentRoutes: FastifyPluginAsync<{ container: AppContainer }> = asyn
   }, async (request, reply) => {
     try {
       const envelope = validateEnvelope(request.body);
+      
+      // Perform structural AJV validation via rpcTransport
+      container.rpcTransport.validate(envelope);
+
       const { card, endpoint } = envelope.params as { card: CapabilityCard; endpoint: string };
 
       const isValid = await container.signer.verify(card);

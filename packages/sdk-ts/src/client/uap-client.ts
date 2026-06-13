@@ -41,15 +41,18 @@ export class UapClient {
     input: TInput,
     scope: string[]
   ): Promise<TOutput> {
+    // Pre-build envelope to preserve message ID and trace ID across retries
+    const envelope = UapEnvelopeBuilder.toolCall({ 
+      toolId, 
+      input, 
+      token: '', 
+      scope, 
+      cardSig: this.options.cardSig 
+    });
+
     const fn = () => this.requestWithRetry<TOutput>(
       `${this.options.gatewayUrl}/tools/invoke`,
-      () => UapEnvelopeBuilder.toolCall({ 
-        toolId, 
-        input, 
-        token: '', 
-        scope, 
-        cardSig: this.options.cardSig 
-      }),
+      envelope,
       scope
     );
 
@@ -64,15 +67,18 @@ export class UapClient {
     input: TInput,
     scope: string[]
   ): Promise<Task<TArtifact>> {
+    // Pre-build envelope to preserve message ID and trace ID across retries
+    const envelope = UapEnvelopeBuilder.agentDelegate({ 
+      agentId, 
+      input, 
+      token: '', 
+      scope, 
+      cardSig: this.options.cardSig 
+    });
+
     const fn = () => this.requestWithRetry<Task<TArtifact>>(
       `${this.options.gatewayUrl}/agents/delegate`,
-      () => UapEnvelopeBuilder.agentDelegate({ 
-        agentId, 
-        input, 
-        token: '', 
-        scope, 
-        cardSig: this.options.cardSig 
-      }),
+      envelope,
       scope
     );
 
@@ -84,12 +90,12 @@ export class UapClient {
 
   private async requestWithRetry<T>(
     url: string,
-    envelopeFactory: () => UapEnvelope,
+    envelope: UapEnvelope,
     scope: string[],
     isRetry = false
   ): Promise<T> {
     const token = await this.options.tokenProvider.getToken(scope);
-    const envelope = envelopeFactory();
+    // Update token in the existing envelope
     envelope.uap.auth.token = token;
 
     let response: Response;
@@ -112,7 +118,7 @@ export class UapClient {
 
     if (response.status === 401 && !isRetry) {
       this.options.tokenProvider.clearCache();
-      return this.requestWithRetry<T>(url, envelopeFactory, scope, true);
+      return this.requestWithRetry<T>(url, envelope, scope, true);
     }
 
     const body = await response.text();
