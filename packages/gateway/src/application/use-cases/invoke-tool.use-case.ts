@@ -2,6 +2,7 @@ import { ISandboxPort } from '../ports/i-sandbox-port';
 import { UapEnvelope } from '../../domain/envelope';
 import { IAuditPublisher } from '../audit-event-bus';
 import { AuditEvent } from '../../domain/audit-event';
+import { UapError, UapSandboxError } from '../../domain/errors';
 
 export class InvokeToolUseCase {
   constructor(
@@ -41,7 +42,11 @@ export class InvokeToolUseCase {
           error: err instanceof Error ? err.message : String(err),
         },
       }));
-      throw err;
+
+      if (err instanceof UapError) {
+        throw err;
+      }
+      throw new UapSandboxError(err instanceof Error ? err.message : String(err));
     }
   }
 }
