@@ -38,7 +38,7 @@ describe('RedisRegistryAdapter', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     adapter = new RedisRegistryAdapter('redis://localhost:6379');
-    mockRedis = (adapter as any).client;
+    mockRedis = (adapter as unknown as { client: Redis }).client;
     // mock resolve to return null by default to avoid issues in register
     vi.mocked(mockRedis.get).mockResolvedValue(null);
   });

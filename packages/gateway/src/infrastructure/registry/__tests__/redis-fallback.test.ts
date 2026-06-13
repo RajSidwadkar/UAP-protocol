@@ -15,7 +15,7 @@ vi.mock('pino', () => {
     debug: vi.fn(),
     child: vi.fn().mockReturnThis(),
   });
-  (pino as any).destination = vi.fn().mockReturnValue({});
+  (pino as unknown as { destination: unknown }).destination = vi.fn().mockReturnValue({});
   return {
     default: pino,
   };
@@ -67,7 +67,7 @@ describe('Redis Registry Fallback', () => {
     const mockRedis = vi.mocked(Redis).mock.results[0]?.value;
     
     // Simulate 'ready' event
-    const readyCallback = mockRedis.once.mock.calls.find((call: any) => call[0] === 'ready')?.[1];
+    const readyCallback = mockRedis.once.mock.calls.find((call: unknown[]) => call[0] === 'ready')?.[1];
     if (readyCallback) readyCallback();
     
     const container = await containerPromise;
@@ -82,7 +82,7 @@ describe('Redis Registry Fallback', () => {
     const mockRedis = vi.mocked(Redis).mock.results[0]?.value;
     
     // Simulate 'error' event
-    const errorCallback = mockRedis.once.mock.calls.find((call: any) => call[0] === 'error')?.[1];
+    const errorCallback = mockRedis.once.mock.calls.find((call: unknown[]) => call[0] === 'error')?.[1];
     if (errorCallback) errorCallback(new Error('Connection failed'));
     
     const container = await containerPromise;
@@ -104,10 +104,10 @@ describe('Redis Registry Fallback', () => {
   it('5. Redis .on("error") handler → error does NOT throw/crash Node process', async () => {
     process.env.REDIS_URL = 'redis://localhost:6379';
     
-    const adapter = new RedisRegistryAdapter(process.env.REDIS_URL);
+    const _adapter = new RedisRegistryAdapter(process.env.REDIS_URL);
     const mockRedis = vi.mocked(Redis).mock.results[0]?.value;
     
-    const errorCallback = mockRedis.on.mock.calls.find((call: any) => call[0] === 'error')?.[1];
+    const errorCallback = mockRedis.on.mock.calls.find((call: unknown[]) => call[0] === 'error')?.[1];
     
     expect(errorCallback).toBeDefined();
     expect(() => errorCallback(new Error('Async error'))).not.toThrow();
