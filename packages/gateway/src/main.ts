@@ -47,7 +47,10 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 if (require.main === module) {
-  start();
+  start().catch(err => {
+    console.error('Fatal startup error:', err);
+    process.exit(1);
+  });
 }
 
 export { start };
