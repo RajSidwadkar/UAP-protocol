@@ -32,7 +32,7 @@ describe('RedisRegistryAdapter Idempotency', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     adapter = new RedisRegistryAdapter('redis://localhost');
-    mockRedis = (adapter as any).client;
+    mockRedis = (adapter as unknown as { client: Redis }).client;
   });
 
   it('1. Duplicate registration preserves original registeredAt', async () => {

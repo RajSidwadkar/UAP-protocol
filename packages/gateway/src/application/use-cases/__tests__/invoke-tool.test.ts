@@ -75,10 +75,11 @@ describe('InvokeToolUseCase', () => {
     try {
       await useCase.execute(mockEnvelope, 'caller-1');
       expect.fail('Should have thrown');
-    } catch (err: any) {
-      expect(err).toBeInstanceOf(UapError);
-      expect(err.code).toBe('UAP_SANDBOX_ERROR');
-      expect(err.message).toBe('Unexpected');
+    } catch (err: unknown) {
+      const uapErr = err as UapError;
+      expect(uapErr).toBeInstanceOf(UapError);
+      expect(uapErr.code).toBe('UAP_SANDBOX_ERROR');
+      expect(uapErr.message).toBe('Unexpected');
     }
     
     expect(mockAudit.publish).toHaveBeenCalledWith(expect.objectContaining({

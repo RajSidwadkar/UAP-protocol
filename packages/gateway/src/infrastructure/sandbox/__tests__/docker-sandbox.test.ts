@@ -173,7 +173,8 @@ describe('DockerSandboxAdapter', () => {
     const mockContainer = await mockDockerInstance.createContainer();
     
     // Manually add to pool for test
-    (adapter as any).pool.available.push(mockContainer);
+    const adapterWithPool = adapter as unknown as { pool: { available: unknown[] } };
+    adapterWithPool.pool.available.push(mockContainer);
     
     await adapter.drainPool();
     expect(mockContainer.remove).toHaveBeenCalledWith({ force: true });

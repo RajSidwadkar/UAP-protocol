@@ -4,6 +4,7 @@ import { IRegistryPort } from '../../ports/i-registry-port';
 import { IAuditPublisher } from '../../audit-event-bus';
 import { UapEnvelope } from '../../../domain/envelope';
 import { UapSandboxError, UapAgentNotFoundError } from '../../../domain/errors';
+import { CapabilityCard } from '../../../domain/capability-card';
 
 describe('DelegateTaskUseCase', () => {
   let useCase: DelegateTaskUseCase;
@@ -41,7 +42,7 @@ describe('DelegateTaskUseCase', () => {
     vi.mocked(mockRegistry.resolve).mockResolvedValue({
       agentId: 'agent-2',
       endpoint: 'http://agent-2.local',
-      card: { issuer: 'agent-2' } as any,
+      card: { issuer: 'agent-2' } as unknown as CapabilityCard,
       registeredAt: 0,
       lastHeartbeat: 0,
     });
@@ -74,7 +75,7 @@ describe('DelegateTaskUseCase', () => {
     vi.mocked(mockRegistry.resolve).mockResolvedValue({
       agentId: 'agent-2',
       endpoint: 'http://agent-2.local',
-      card: { issuer: 'agent-2' } as any,
+      card: { issuer: 'agent-2' } as unknown as CapabilityCard,
       registeredAt: 0,
       lastHeartbeat: 0,
     });
