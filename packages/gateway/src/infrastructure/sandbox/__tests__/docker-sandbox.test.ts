@@ -155,7 +155,7 @@ describe('DockerSandboxAdapter', () => {
   });
 
   it('pool.acquire() returns a warm container → createContainer NOT called on second request', async () => {
-    const DockerMock = (await import('dockerode')).default as any;
+    const DockerMock = (await import('dockerode')).default as unknown as MockDockerConstructor;
     const createContainerSpy = DockerMock.prototype.createContainer;
 
     // First call: pool is empty, should call createContainer
@@ -168,9 +168,10 @@ describe('DockerSandboxAdapter', () => {
   });
 
   it('pool.release() is called after execution → pool.drainPool() removes containers', async () => {
-    const DockerMock = (await import('dockerode')).default as any;
+    const DockerMock = (await import('dockerode')).default as unknown as MockDockerConstructor;
     const mockDockerInstance = new DockerMock();
     const mockContainer = await mockDockerInstance.createContainer();
+
 
     await adapter.execute('test-tool', {}, []);
     // Container should be in pool now

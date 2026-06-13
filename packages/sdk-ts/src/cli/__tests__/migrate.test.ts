@@ -44,7 +44,7 @@ describe('uap-migrate CLI', () => {
     
     // Configure program to not exit on error for testing
     program.exitOverride((err) => {
-      throw new ExitError((err as any).exitCode || 1);
+      throw new ExitError(((err as Error & { exitCode?: number }).exitCode) || 1);
     });
   });
 
@@ -58,9 +58,9 @@ describe('uap-migrate CLI', () => {
     const args = ['node', 'migrate.js', 'mcp', 'http://localhost:8080', '--issuer', issuer, '--key', keyPath, '--out', outDir];
     
     // Mock process.exit
-    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((code: number) => {
-      throw new ExitError(code);
-    }) as any);
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((code?: number | string | null) => {
+      throw new ExitError(code === undefined ? 1 : Number(code));
+    }) as (code?: number | string | null) => never);
     
     await program.parseAsync(args);
     
@@ -82,9 +82,9 @@ describe('uap-migrate CLI', () => {
 
     const args = ['node', 'migrate.js', 'mcp', 'http://localhost:8080', '--issuer', issuer, '--key', keyPath, '--out', outDir];
     
-    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((code: number) => {
-      throw new ExitError(code);
-    }) as any);
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((code?: number | string | null) => {
+      throw new ExitError(code === undefined ? 1 : Number(code));
+    }) as (code?: number | string | null) => never);
     
     try {
       await program.parseAsync(args);
@@ -106,9 +106,9 @@ describe('uap-migrate CLI', () => {
     const issuer = 'test-agent';
     const args = ['node', 'migrate.js', 'mcp', 'http://localhost:8080', '--issuer', issuer, '--out', outDir];
     
-    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((code: number) => {
-      throw new ExitError(code);
-    }) as any);
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((code?: number | string | null) => {
+      throw new ExitError(code === undefined ? 1 : Number(code));
+    }) as (code?: number | string | null) => never);
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     await expect(program.parseAsync(args)).rejects.toThrow(ExitError);
