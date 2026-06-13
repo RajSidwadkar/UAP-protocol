@@ -1,69 +1,117 @@
-
 <div align="center">
-  <img src="https://raw.githubusercontent.com/RajSidwadkar/UAP-protocol/main/assets/vector_original_falcon.svg" alt="VECTOR — The UAP Gateway Falcon" width="600" />
-
-  <br><br>
-
-  <h2><strong>Vector is a Peregrine Falcon.</strong></h2>
-  <h4>The fastest animal on the planet. Precision-guided.</h4>
-  <h4>Routes everything through a single decisive point.</h4>
-  <h3><em>That is what the UAP Gateway does.</em></h3>
-  
-  <br>
+  <img src="https://raw.githubusercontent.com/RajSidwadkar/UAP-protocol/main/assets/vector_original_falcon.svg" alt="VECTOR — The UAP Gateway Falcon" width="320" />
 </div>
 
-<div align="center">
+<br>
 
 ```
  ██╗   ██╗ █████╗ ██████╗
  ██║   ██║██╔══██╗██╔══██╗
  ██║   ██║███████║██████╔╝
  ██║   ██║██╔══██║██╔═══╝
-╚██████╔╝██║  ██║██║
+ ╚██████╔╝██║  ██║██║
   ╚═════╝ ╚═╝  ╚═╝╚═╝
+
+Universal Agent Protocol
 ```
 
-**Universal Agent Protocol**
-
-*A unified, security-first wire protocol for tool access, agent coordination, and structured RPC*
+**A unified, security-first wire protocol for tool access, agent coordination, and structured RPC.**
+Built to close CVE-2025-49596 and the class of tool-poisoning and sandbox-escape vulnerabilities that MCP left structurally open.
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![TypeScript](https://img.shields.io/badge/TypeScript-strict-blue)](https://www.typescriptlang.org/)
-[![Node](https://img.shields.io/badge/Node-20%2B-green)](https://nodejs.org/)
-[![Python](https://img.shields.io/badge/Python-3.11%2B-blue)](https://www.python.org/)
-
-</div>
-
----
-
-## What is UAP?
-
-UAP is a wire protocol that defines a single, typed envelope for every kind of agent communication — tool invocations, agent-to-agent delegation, streaming, and responses. It ships with mandatory authentication, cryptographically signed capability manifests, per-call sandboxing, and a structured audit trail baked into the protocol itself, not bolted on top.
-
-It is implemented as a Turborepo monorepo containing a Fastify gateway, a TypeScript SDK, and a Python SDK. All three share the same domain model.
+[![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6)](https://www.typescriptlang.org/)
+[![Node](https://img.shields.io/badge/Node-20%2B-339933)](https://nodejs.org/)
+[![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab)](https://www.python.org/)
+[![Status](https://img.shields.io/badge/status-pre--release-orange)]()
 
 ---
 
-## Packages
+## 30-second quickstart
 
-```
-UAP-protocol/
-├── packages/
-│   ├── gateway/      — Fastify-based UAP Gateway (@uap/gateway)
-│   ├── sdk-ts/       — TypeScript client + server SDK (@uap/sdk-ts)
-│   └── sdk-py/       — Python async SDK (uap-sdk)
-├── scripts/
-│   ├── generate-keypair.ts    — Ed25519 keypair for local dev
-│   └── keycloak-bootstrap.ts  — Idempotent Keycloak realm setup
-└── docker/
-    └── sandbox/      — Base image for zero-trust tool execution
+```bash
+git clone https://github.com/RajSidwadkar/UAP-protocol
+cd UAP-protocol
+npm install
+npx tsx scripts/generate-keypair.ts
+docker compose -f docker-compose.dev.yml up -d
 ```
 
+```bash
+curl http://localhost:3000/health
+# {"status":"ok","version":"1.0.0"}
+```
+
+That starts Keycloak on `:8080` and the UAP Gateway on `:3000`. The gateway enforces mTLS, verifies Ed25519-signed CapabilityCards, and runs every tool call in an ephemeral Docker container. No configuration required beyond the generated keypair.
+
 ---
 
-## How it works
+## Architecture
 
-Every UAP message uses the same envelope. The `uap` header carries identity, tracing, and a cryptographic reference to the agent's capability manifest. The gateway verifies all three before the request reaches any application code.
+```mermaid
+graph TD
+    A[Client / Agent SDK] -->|mTLS + JWT + card_sig| B[UAP Gateway<br/>Fastify · port 3000]
+
+    B --> C{8-Stage Pipeline}
+
+    C --> C1[1 · Frame parse<br/>UapMessageFactory]
+    C1 --> C2[2 · Schema validate<br/>AJV against schema_ref]
+    C2 --> C3[3 · Token verify<br/>Keycloak JWKS · max 15 min]
+    C3 --> C4[4 · Scope enforce<br/>PermissionEnforcer]
+    C4 --> C5[5 · Card verify<br/>Ed25519 signature check]
+    C5 --> C6[6 · Sandbox execute<br/>Docker · CapDrop ALL · 128 MB]
+    C6 --> C7[7 · Audit emit<br/>AuditEventBus · non-blocking]
+    C7 --> C8[8 · Response<br/>UapResponseEnvelope]
+
+    B --> R[(Service Registry<br/>InMemory · Redis)]
+    B --> KC[(Keycloak IdP<br/>OAuth 2.1 · PKCE)]
+    B --> OT[(OpenTelemetry<br/>W3C TraceContext)]
+    B --> AU[(Audit Log<br/>append-only NDJSON)]
+```
+
+**Hexagonal layers** — domain has zero I/O dependencies. Every infrastructure concern sits behind a typed port interface. Swap Docker for WASM, Keycloak for Auth0, Pino for a SIEM exporter — zero domain impact.
+
+| Layer | Contents | Dependencies |
+|---|---|---|
+| Domain | `UapEnvelope`, `CapabilityCard`, `AuditEvent`, `Task` | None — stdlib only |
+| Application | `InvokeToolUseCase`, `DelegateTaskUseCase`, `ValidateCardUseCase` | Domain ports only |
+| Infrastructure | `KeycloakAuthAdapter`, `DockerSandboxAdapter`, `Ed25519SignerAdapter`, `PinoAuditAdapter` | App ports + external libs |
+| Transport | UAP-RPC frame parser, Fastify gateway, SSE/WebSocket handlers | Infrastructure + domain serializers |
+
+---
+
+## UAP vs MCP vs A2A vs JSON-RPC 2.0
+
+| Feature | UAP | MCP | A2A | JSON-RPC 2.0 |
+|---|---|---|---|---|
+| Mandatory auth | ✅ mTLS + JWT always | ❌ Optional | ⚠️ API key only | ❌ None |
+| Tool metadata integrity | ✅ Ed25519-signed payload | ❌ Post-publish mutation possible | ❌ No signing | ❌ No signing |
+| Sandbox model | ✅ Per-call ephemeral Docker | ⚠️ Server-level only | ❌ None | ❌ None |
+| Agent discovery | ✅ Hub-and-spoke · N connections | ❌ N² direct HTTP | ⚠️ DNS-based | ❌ None |
+| Audit trail | ✅ Protocol-native append-only log | ❌ None | ❌ None | ❌ None |
+| Distributed tracing | ✅ W3C TraceContext mandatory | ❌ None | ❌ None | ❌ None |
+| Schema validation | ✅ AJV at transport layer | ⚠️ Optional Zod | ❌ None | ❌ None |
+| Token lifetime cap | ✅ 15-min enforced | ❌ Unenforced | ❌ Unenforced | ❌ N/A |
+| Batch semantics | ✅ serial · parallel · transactional | ❌ Undefined | ❌ None | ⚠️ Ambiguous |
+| Binary payloads | ✅ Native frames | ❌ Base64 only | ❌ Base64 only | ❌ Base64 only |
+| IdP model | ✅ External IdP only | ❌ Server is its own OAuth provider | ⚠️ Varies | ❌ None |
+| Bridge adapters | ✅ MCP + A2A bridges ship in Phase 2 | ❌ No bridge | ❌ No bridge | ❌ No bridge |
+| Horizontal scale | ✅ Stateless · any load balancer | ❌ Sticky sessions | ⚠️ Varies | ❌ None |
+
+---
+
+## Why UAP exists
+
+- **CVE-2025-49596 (tool-poisoning via unsigned metadata).** MCP tool descriptions are mutable after publication. An attacker can inject malicious instructions into tool names or descriptions post-deployment — the client has no way to detect tampering. UAP puts all tool metadata inside the Ed25519-signed `CapabilityCard` payload. Any mutation after signing invalidates the signature and the gateway rejects the card before executing anything.
+
+- **CWE-284 / sandbox-escape class.** MCP runs tools at the server process level. A path traversal or process injection in any tool reaches the host filesystem and network. UAP creates a fresh Docker container per call — read-only rootfs, `CapDrop: ALL`, 128 MB RAM cap, network disabled by default. The container is destroyed after the response. There is no persistent attack surface between calls.
+
+- **CWE-287 / confused-deputy auth.** MCP acts as its own OAuth provider, making it both the resource server and the authorization server. This is the classic confused-deputy pattern. UAP separates these roles: the gateway is a pure resource server. Keycloak (or any external IdP) is the sole authority. JWTs are verified against a remote JWKS endpoint and hard-capped at 15 minutes.
+
+---
+
+## Wire format
+
+Every UAP message uses the same envelope. The `auth` block carries a scoped JWT and a reference to the agent's signed CapabilityCard. The gateway verifies both before the request reaches any application code.
 
 ```json
 {
@@ -84,138 +132,27 @@ Every UAP message uses the same envelope. The `uap` header carries identity, tra
   "schema_ref": "uap:tool.invoke/v1",
   "params": {
     "tool_id": "db:query",
-    "input": { "sql": "SELECT ..." }
+    "input": { "sql": "SELECT 1" }
   },
   "ack": true
 }
 ```
 
-Every inbound request passes through eight pipeline stages before a tool runs:
-
-| Stage | What happens | Error on failure |
-|---|---|---|
-| Frame parse | Raw bytes → typed `UapEnvelope` via factory | `400 UapParseError` |
-| Schema validate | AJV validates `params` against `schema_ref` | `422 UapValidationError` |
-| Token verify | JWT checked: expiry, issuer, audience, max 15 min | `401 UapAuthError` |
-| Scope enforce | Token scopes checked against CapabilityCard | `403 UapForbiddenError` |
-| Card verify | Ed25519 signature on CapabilityCard verified | `409 UapCardTamperedError` |
-| Sandbox execute | Tool runs in ephemeral Docker container | `500 UapSandboxError` |
-| Audit emit | `AuditEvent` written — non-blocking, never throws | — |
-| Response | Structured `UapResponseEnvelope` returned | — |
-
 ---
 
-## Architecture
-
-UAP uses hexagonal (ports and adapters) architecture throughout. The domain layer has zero I/O dependencies. Every infrastructure concern — auth, sandbox, audit, registry — sits behind a typed port interface.
+## Packages
 
 ```
-Domain          Pure entities. UapEnvelope, CapabilityCard, AuditEvent.
-                Zero imports from infrastructure or transport.
-
-Application     Use-case orchestrators. InvokeToolUseCase, DelegateTaskUseCase.
-                Depends on port interfaces only.
-
-Infrastructure  Concrete adapters. KeycloakAuthAdapter, DockerSandboxAdapter,
-                PinoAuditAdapter, Ed25519SignerAdapter, InMemoryRegistryAdapter.
-
-Transport       Fastify gateway, UAP-RPC frame parser, SSE/WebSocket handlers.
-```
-
-Adapters can be swapped without touching domain or application code. The Docker sandbox becomes a WASM sandbox. Keycloak becomes Auth0. Pino becomes a SIEM exporter. Zero domain impact.
-
----
-
-## CapabilityCard signing
-
-Every agent publishes a CapabilityCard — a JSON manifest describing its tools, endpoints, and permission scopes. The card is signed with Ed25519. Tool names, descriptions, and parameter schemas are part of the signed payload.
-
-```typescript
-const card: CapabilityCard = {
-  issuer: "did:uap:my-agent",
-  version: "1.0.0",
-  tools: [
-    {
-      id: "db:query",
-      description: "Run a read-only SQL query",
-      inputSchema: { type: "object", required: ["sql"] },
-      scopes: ["tool:read"]
-    }
-  ],
-  scopes: ["tool:read", "tool:write"],
-  issuedAt: Date.now(),
-  expiresAt: Date.now() + 86_400_000 * 30
-};
-
-const signed = await signer.sign(card);
-// signed.signature === "ed25519:a1b2c3..."
-```
-
-Mutating any field after signing — including a tool description — invalidates the signature. The gateway rejects tampered cards before executing anything.
-
----
-
-## Installation
-
-**Prerequisites**
-
-```bash
-node --version   # v20+ required
-python3 --version  # 3.11+ required
-docker --version   # Docker Desktop required for sandbox
-gh --version     # GitHub CLI for the git workflow
-```
-
-**Clone and install**
-
-```bash
-git clone https://github.com/your-org/UAP-protocol
-cd UAP-protocol
-npm install
-```
-
-**Generate a local Ed25519 keypair**
-
-```bash
-npx tsx scripts/generate-keypair.ts
-# Writes config/dev.privkey.hex and config/dev.pubkey.hex
-# Both files are gitignored
-```
-
-**Run tests**
-
-```bash
-cd packages/gateway && npx vitest run
-cd packages/sdk-ts  && npx vitest run
-cd packages/sdk-py  && python -m pytest tests/ -v
-```
-
-**Typecheck**
-
-```bash
-cd packages/gateway && npx tsc --noEmit
-cd packages/sdk-ts  && npx tsc --noEmit
-```
-
----
-
-## Local stack
-
-Requires Docker Desktop.
-
-```bash
-# Start Keycloak
-docker compose -f docker-compose.dev.yml up -d keycloak
-
-# Bootstrap the UAP realm, client, and roles (idempotent)
-npx tsx scripts/keycloak-bootstrap.ts
-
-# Start the gateway
-cd packages/gateway
-npx tsx src/main.ts
-
-# Health check
-curl http://localhost:3000/health
+UAP-protocol/
+├── packages/
+│   ├── gateway/      @uap/gateway   — Fastify-based UAP Gateway
+│   ├── sdk-ts/       @uap/sdk-ts    — TypeScript client + server SDK
+│   └── sdk-py/       uap-sdk        — Python async SDK (httpx + FastAPI)
+├── scripts/
+│   ├── generate-keypair.ts          — Ed25519 keypair for local dev
+│   └── keycloak-bootstrap.ts        — Idempotent Keycloak realm setup
+└── docker/
+    └── sandbox/                     — Base image for zero-trust tool execution
 ```
 
 ---
@@ -226,7 +163,7 @@ curl http://localhost:3000/health
 import { UapClient, ClientCredentialsTokenProvider } from "@uap/sdk-ts";
 
 const client = new UapClient({
-  gatewayUrl: "https://gateway.uap.dev",
+  gatewayUrl: "https://gateway.example.com",
   tokenProvider: new ClientCredentialsTokenProvider({
     tokenUrl: process.env.TOKEN_URL!,
     clientId: process.env.CLIENT_ID!,
@@ -234,8 +171,17 @@ const client = new UapClient({
   }),
 });
 
-const result = await client.invokeTool("db:query", { sql: "SELECT ..." }, ["tool:read"]);
-const task   = await client.delegateTask("summarizer", { text: "..." }, ["task:submit"]);
+const result = await client.invokeTool(
+  "db:query",
+  { sql: "SELECT * FROM users LIMIT 10" },
+  ["tool:read"]
+);
+
+const task = await client.delegateTask(
+  "summarizer",
+  { text: "..." },
+  ["task:submit"]
+);
 ```
 
 ---
@@ -247,14 +193,14 @@ from uap_sdk.client import UapClient, UapClientOptions
 from uap_sdk.token import ClientCredentialsTokenProvider
 
 async with UapClient(UapClientOptions(
-    gateway_url="https://gateway.uap.dev",
+    gateway_url="https://gateway.example.com",
     token_provider=ClientCredentialsTokenProvider(
         token_url=os.environ["TOKEN_URL"],
         client_id=os.environ["CLIENT_ID"],
         client_secret=os.environ["CLIENT_SECRET"],
     )
 )) as client:
-    result = await client.invoke_tool("db:query", {"sql": "SELECT ..."}, ["tool:read"])
+    result = await client.invoke_tool("db:query", {"sql": "SELECT 1"}, ["tool:read"])
 ```
 
 **FastAPI middleware**
@@ -273,7 +219,7 @@ async def summarize(request: Request):
 
 ## Migrate an existing MCP server
 
-The migration CLI wraps any MCP server as a signed UAP CapabilityCard. It reads the server's tool list, builds the card, and writes it to disk. Idempotent — re-running on an already-migrated server is a no-op.
+The `uap-migrate` CLI wraps any MCP server as a signed UAP CapabilityCard in under 5 minutes. Idempotent — re-running on an already-migrated server is a no-op.
 
 ```bash
 node dist/cli/migrate.js mcp http://localhost:3001 \
@@ -281,7 +227,30 @@ node dist/cli/migrate.js mcp http://localhost:3001 \
   --key config/dev.privkey.hex \
   --out ./uap-cards
 
-# Output: ./uap-cards/did:uap:my-org.card.json
+# → ./uap-cards/did:uap:my-org.card.json
+```
+
+---
+
+## CapabilityCard signing
+
+Tool names, descriptions, and parameter schemas are part of the Ed25519-signed payload. Mutating any field after signing invalidates the signature — structurally defeating tool-poisoning.
+
+```typescript
+const signed = await signer.sign({
+  issuer: "did:uap:my-agent",
+  version: "1.0.0",
+  tools: [{
+    id: "db:query",
+    description: "Run a read-only SQL query",
+    inputSchema: { type: "object", required: ["sql"] },
+    scopes: ["tool:read"]
+  }],
+  scopes: ["tool:read"],
+  issuedAt: Date.now(),
+  expiresAt: Date.now() + 86_400_000 * 30
+});
+// signed.signature === "ed25519:a1b2c3..."
 ```
 
 ---
@@ -311,12 +280,12 @@ node dist/cli/migrate.js mcp http://localhost:3001 \
 |---|---|---|
 | `fastify` | `^4.27` | Gateway HTTP server |
 | `zod` | `^3.23` | Envelope schema and type inference |
-| `@noble/curves` | `^1.4` | Ed25519 signing (CapabilityCard) |
+| `@noble/curves` | `^1.4` | Ed25519 signing |
 | `jose` | `^5.4` | JWT verification, JWKS client |
 | `ajv` | `^8.16` | Transport-level param validation |
 | `dockerode` | `^4.0` | Zero-trust sandbox adapter |
 | `pino` | `^9.2` | Append-only structured audit log |
-| `ulid` | `^2.3` | Sortable unique IDs for all entities |
+| `ulid` | `^2.3` | Sortable unique IDs |
 | `@opentelemetry/sdk-node` | `^0.52` | Distributed tracing |
 | `ioredis` | `^5.3` | Multi-instance service registry |
 | `@modelcontextprotocol/sdk` | `^1.0` | MCP bridge adapter |
@@ -329,23 +298,22 @@ node dist/cli/migrate.js mcp http://localhost:3001 \
 
 Branch naming: `feat/<sprint>-<task>-<slug>` — e.g. `feat/s2-2.1-mtls-keycloak`
 
-Every change follows: branch → local typecheck + vitest → commit → PR → squash merge → branch delete.
+Every change follows: branch → `npx tsc --noEmit` + `npx vitest run` locally → commit → PR → squash merge → branch delete. No CI dependency for local development.
 
-No CI dependency for local development. Run `npx tsc --noEmit` and `npx vitest run` before every commit.
+```bash
+# Run all tests before committing
+cd packages/gateway && npx vitest run
+cd packages/sdk-ts  && npx vitest run
+cd packages/sdk-py  && python -m pytest tests/ -v
+```
 
+**Roadmap:** Sprint 0 (scaffold) → Sprint 1 (schema + signing + RPC) → Sprint 2 (security core) → Sprint 3 (gateway + registry) → Sprint 4 (bridge adapters) → Sprint 5 (SDKs + Docker image). 
 ---
 
-## License
-
-Apache 2.0 — see [LICENSE](./LICENSE).
-
----
-
-<div align="center">
-
-
-  <img src="https://raw.githubusercontent.com/RajSidwadkar/UAP-protocol/main/assets/vector_original_falcon.svg" alt="VECTOR — The UAP Gateway Falcon" width="600" />
+<div align="right">
+  <img src="https://raw.githubusercontent.com/RajSidwadkar/UAP-protocol/main/assets/vector_original_falcon.svg" alt="VECTOR" width="120" />
+</div>
 
 *UAP · Universal Agent Protocol · 2026*
 
-</div>
+SPDX-License-Identifier: Apache-2.0
