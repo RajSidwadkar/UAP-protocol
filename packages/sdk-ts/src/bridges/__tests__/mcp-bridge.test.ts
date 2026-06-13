@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { McpBridgeAdapter, McpBridgeTimeoutError } from '../mcp-bridge.js';
+import { McpBridgeAdapter } from '../mcp-bridge.js';
 import { ICardSignerPort } from '../../domain/capability-card.js';
 
 const mockClientMethods = {
