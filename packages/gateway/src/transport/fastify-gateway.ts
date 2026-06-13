@@ -12,6 +12,7 @@ import healthRoutes from './routes/health.routes';
 import { toolRoutes } from './routes/tool.routes';
 import { agentRoutes } from './routes/agent.routes';
 import { AuditEvent } from '../domain/audit-event';
+import { UapConfigurationError } from '../domain/errors';
 
 export function loadTlsOptions() {
   const cert = process.env.UAP_MTLS_CERT;
@@ -19,7 +20,7 @@ export function loadTlsOptions() {
   const ca = process.env.UAP_MTLS_CA;
 
   if (!cert || !key) {
-    throw new Error('UAP_MTLS_CERT and UAP_MTLS_KEY are required. Plaintext HTTP is forbidden in UAP.');
+    throw new UapConfigurationError('UAP_MTLS_CERT and UAP_MTLS_KEY are required. Plaintext HTTP is forbidden in UAP.');
   }
 
   return {
