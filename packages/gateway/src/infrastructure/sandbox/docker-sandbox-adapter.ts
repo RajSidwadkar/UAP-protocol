@@ -138,12 +138,12 @@ export class DockerSandboxAdapter implements ISandboxPort {
             stdout += chunk.toString();
             return true;
           }
-        } as any, {
+        } as unknown as NodeJS.WritableStream, {
           write: (chunk: Buffer | string) => { 
             stderr += chunk.toString();
             return true;
           }
-        } as any);
+        } as unknown as NodeJS.WritableStream);
 
         stream.on('end', () => resolve({ stdout, stderr }));
         stream.on('error', (err) => reject(err));
