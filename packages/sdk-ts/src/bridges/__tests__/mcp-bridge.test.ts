@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { McpBridgeAdapter } from '../mcp-bridge.js';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { McpBridgeAdapter, McpBridgeTimeoutError } from '../mcp-bridge.js';
 import { ICardSignerPort } from '../../domain/capability-card.js';
 
 const mockClientMethods = {
@@ -70,6 +70,10 @@ describe('McpBridgeAdapter', () => {
     });
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('buildCapabilityCard() -> card.tools contains all tools returned by listTools()', async () => {
     const card = await adapter.buildCapabilityCard();
     expect(card.tools).toHaveLength(1);
@@ -110,11 +114,12 @@ describe('McpBridgeAdapter', () => {
   it('buildCapabilityCard() connection failure -> logs MCP_BRIDGE_ERROR, rethrows', async () => {
     mockClientMethods.connect.mockRejectedValueOnce(new Error('Connection failed'));
 
-    const consoleSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
+    const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     await expect(adapter.buildCapabilityCard()).rejects.toThrow('Connection failed');
-    expect(consoleSpy).toHaveBeenCalledWith('MCP_BRIDGE_ERROR', expect.objectContaining({
-      error: 'Connection failed'
+    expect(consoleSpy).toHaveBeenCalledWith(expect.objectContaining({
+      kind: 'MCP_BRIDGE_ERROR',
+      message: 'Connection failed'
     }));
     
     consoleSpy.mockRestore();
@@ -123,15 +128,59 @@ describe('McpBridgeAdapter', () => {
   it('buildCapabilityCard() — MCP server connection failure emits MCP_BRIDGE_ERROR', async () => {
     mockClientMethods.connect.mockRejectedValueOnce(new Error('ECONNREFUSED'));
     
-    const consoleSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
+    const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     
     await expect(adapter.buildCapabilityCard()).rejects.toThrow('ECONNREFUSED');
     
-    expect(consoleSpy).toHaveBeenCalledWith('MCP_BRIDGE_ERROR', expect.objectContaining({
+    expect(consoleSpy).toHaveBeenCalledWith(expect.objectContaining({
       kind: 'MCP_BRIDGE_ERROR',
-      error: 'ECONNREFUSED'
+      message: 'ECONNREFUSED'
     }));
     
     consoleSpy.mockRestore();
+  });
+
+  it('buildCapabilityCard() rejects and emits MCP_BRIDGE_ERROR when listTools() throws', async () => {
+    // Arrange
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mockClientMethods.connect.mockResolvedValue(undefined);
+    mockClientMethods.listTools.mockRejectedValue(new Error('MCP server returned 500'));
+
+    // Act + Assert
+    await expect(adapter.buildCapabilityCard()).rejects.toThrow('MCP server returned 500');
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'MCP_BRIDGE_ERROR' })
+    );
+    warnSpy.mockRestore();
+  });
+
+  it('buildCapabilityCard() rejects with McpBridgeTimeoutError when connect() hangs past 10s', async () => {
+    vi.useFakeTimers();
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mockClientMethods.connect.mockReturnValue(new Promise(() => {})); // never resolves
+
+    const promise = adapter.buildCapabilityCard();
+    vi.advanceTimersByTime(10_001);
+
+    await expect(promise).rejects.toThrow('timed out');
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'MCP_BRIDGE_ERROR', reason: 'timeout' })
+    );
+    warnSpy.mockRestore();
+  });
+
+  it('invokeTool() rejects with McpBridgeTimeoutError when callTool() hangs past 30s', async () => {
+    vi.useFakeTimers();
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mockClientMethods.callTool.mockReturnValue(new Promise(() => {})); // never resolves
+
+    const promise = adapter.invokeTool('some-tool', {});
+    vi.advanceTimersByTime(30_001);
+
+    await expect(promise).rejects.toThrow('timed out');
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'MCP_BRIDGE_ERROR' })
+    );
+    warnSpy.mockRestore();
   });
 });
