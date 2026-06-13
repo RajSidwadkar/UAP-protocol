@@ -56,4 +56,15 @@ describe('A2aBridgeAdapter', () => {
     
     expect(card.issuer).toBe('agent-1');
   });
+
+  it('convertAgentCard() — A2A card with zero skills produces empty tools array and valid signature', async () => {
+    const a2aCard: A2aAgentCard = { name: 'empty-agent', version: '1.0.0', skills: [] };
+    const card = await adapter.convertAgentCard(a2aCard);
+    
+    expect(card.tools).toEqual([]);
+    expect(card.signature?.startsWith('ed25519:')).toBe(true);
+    
+    const isValid = await signer.verify(card);
+    expect(isValid).toBe(true);
+  });
 });

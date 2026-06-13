@@ -3,13 +3,42 @@ import { ISandboxPort, SandboxResult } from '../../application/ports/i-sandbox-p
 import { PermissionScope } from '../../domain/capability-card';
 import { UapSandboxError, UapValidationError } from '../../domain/errors';
 
+class ContainerPool {
+  private available: Docker.Container[] = []
+  private readonly maxSize: number
+
+  constructor(maxSize: number) {
+    this.maxSize = maxSize
+  }
+
+  // Returns a container from the pool or null if empty
+  acquire(): Docker.Container | null {
+    return this.available.pop() ?? null
+  }
+
+  // Returns a container to the pool if under max; otherwise calls container.remove({ force: true })
+  async release(container: Docker.Container): Promise<void> {
+    if (this.available.length < this.maxSize) {
+      this.available.push(container)
+    } else {
+      await container.remove({ force: true }).catch(() => {})
+    }
+  }
+
+  size(): number {
+    return this.available.length
+  }
+}
+
 export class DockerSandboxAdapter implements ISandboxPort {
   private readonly docker: Docker;
   private readonly baseImage: string;
+  private readonly pool: ContainerPool;
 
-  constructor(socketPath: string, baseImage = 'uap-sandbox:latest') {
+  constructor(socketPath: string, baseImage = 'uap-sandbox:latest', poolSize = 5) {
     this.docker = new Docker({ socketPath });
     this.baseImage = baseImage;
+    this.pool = new ContainerPool(poolSize);
   }
 
   private static validateToolId(toolId: string): void {
@@ -35,7 +64,7 @@ export class DockerSandboxAdapter implements ISandboxPort {
     const start = Date.now();
     const Memory = 128 * 1024 * 1024;
     const CpuQuota = 50000;
-    const AutoRemove = true;
+    const AutoRemove = false; // Managed by pool
     const ReadonlyRootfs = !scope.includes('fs:write');
     const NetworkDisabled = !scope.includes('network:egress');
     const CapDrop = ['ALL'];
@@ -45,19 +74,23 @@ export class DockerSandboxAdapter implements ISandboxPort {
     try {
       console.info({ kind: 'SANDBOX_CREATED', toolId, durationMs: 0 });
 
-      container = await this.docker.createContainer({
-        Image: this.baseImage,
-        Cmd: ['node', '/tool/runner.js', toolId, JSON.stringify(input)],
-        NetworkDisabled,
-        HostConfig: {
-          Memory,
-          CpuQuota,
-          AutoRemove,
-          ReadonlyRootfs,
-          CapDrop,
-          CapAdd,
-        },
-      });
+      container = this.pool.acquire();
+
+      if (!container) {
+        container = await this.docker.createContainer({
+          Image: this.baseImage,
+          Cmd: ['node', '/tool/runner.js', toolId, JSON.stringify(input)],
+          NetworkDisabled,
+          HostConfig: {
+            Memory,
+            CpuQuota,
+            AutoRemove,
+            ReadonlyRootfs,
+            CapDrop,
+            CapAdd,
+          },
+        });
+      }
 
       await container.start();
       const logs = await container.logs({ stdout: true, stderr: true, follow: true });
@@ -86,7 +119,16 @@ export class DockerSandboxAdapter implements ISandboxPort {
       throw new UapSandboxError(`Sandbox execution failed: ${message}`);
     } finally {
       if (container) {
-        await this.teardown(container.id).catch(() => {});
+        await this.pool.release(container);
+      }
+    }
+  }
+
+  async drainPool(): Promise<void> {
+    while (this.pool.size() > 0) {
+      const container = this.pool.acquire();
+      if (container) {
+        await container.remove({ force: true }).catch(() => {});
       }
     }
   }

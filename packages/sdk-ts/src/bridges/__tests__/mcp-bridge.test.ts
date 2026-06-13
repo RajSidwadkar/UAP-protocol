@@ -119,4 +119,19 @@ describe('McpBridgeAdapter', () => {
     
     consoleSpy.mockRestore();
   });
+
+  it('buildCapabilityCard() — MCP server connection failure emits MCP_BRIDGE_ERROR', async () => {
+    mockClientMethods.connect.mockRejectedValueOnce(new Error('ECONNREFUSED'));
+    
+    const consoleSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
+    
+    await expect(adapter.buildCapabilityCard()).rejects.toThrow('ECONNREFUSED');
+    
+    expect(consoleSpy).toHaveBeenCalledWith('MCP_BRIDGE_ERROR', expect.objectContaining({
+      kind: 'MCP_BRIDGE_ERROR',
+      error: 'ECONNREFUSED'
+    }));
+    
+    consoleSpy.mockRestore();
+  });
 });

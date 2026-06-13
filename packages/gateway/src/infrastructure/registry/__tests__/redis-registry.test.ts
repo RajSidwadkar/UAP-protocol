@@ -55,4 +55,35 @@ describe('RedisRegistryAdapter', () => {
       code: 'UAP_REGISTRY_ERROR',
     });
   });
+
+  it('Cache hit: resolve() called twice for same agentId → Redis get called exactly ONCE', async () => {
+    const entry = { agentId: 'agent-1', endpoint: 'http://locahost', card: validCard };
+    vi.mocked(mockRedis.get).mockResolvedValue(JSON.stringify(entry));
+    vi.mocked(mockRedis.ttl).mockResolvedValue(100);
+
+    // First call: cache miss, calls Redis
+    await adapter.resolve('agent-1');
+    expect(mockRedis.get).toHaveBeenCalledTimes(1);
+
+    // Second call: cache hit, skips Redis
+    await adapter.resolve('agent-1');
+    expect(mockRedis.get).toHaveBeenCalledTimes(1); // Still 1
+  });
+
+  it('Cache invalidation: deregister() then resolve() → cache miss → Redis get called', async () => {
+    const entry = { agentId: 'agent-1', endpoint: 'http://locahost', card: validCard };
+    vi.mocked(mockRedis.get).mockResolvedValue(JSON.stringify(entry));
+    vi.mocked(mockRedis.ttl).mockResolvedValue(100);
+
+    // Warm up cache
+    await adapter.resolve('agent-1');
+    expect(mockRedis.get).toHaveBeenCalledTimes(1);
+
+    // Deregister should invalidate cache
+    await adapter.deregister('agent-1');
+
+    // Resolve again: should call Redis again
+    await adapter.resolve('agent-1');
+    expect(mockRedis.get).toHaveBeenCalledTimes(2);
+  });
 });

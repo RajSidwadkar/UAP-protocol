@@ -153,4 +153,30 @@ describe('DockerSandboxAdapter', () => {
   it('execute() with toolId \'..\\\\windows\\\\system32\' → throws UapValidationError', async () => {
     await expect(adapter.execute('..\\windows\\system32', {}, [])).rejects.toThrow(UapValidationError);
   });
+
+  it('pool.acquire() returns a warm container → createContainer NOT called on second request', async () => {
+    const DockerMock = (await import('dockerode')).default as unknown as MockDockerConstructor;
+    const createContainerSpy = DockerMock.prototype.createContainer;
+
+    // First call: pool is empty, should call createContainer
+    await adapter.execute('test-tool', {}, []);
+    expect(createContainerSpy).toHaveBeenCalledTimes(1);
+
+    // Second call: pool should have the container from first call
+    await adapter.execute('test-tool', {}, []);
+    expect(createContainerSpy).toHaveBeenCalledTimes(1); // Still 1
+  });
+
+  it('pool.release() is called after execution → pool.drainPool() removes containers', async () => {
+    const DockerMock = (await import('dockerode')).default as unknown as MockDockerConstructor;
+    const mockDockerInstance = new DockerMock();
+    const mockContainer = await mockDockerInstance.createContainer();
+
+
+    await adapter.execute('test-tool', {}, []);
+    // Container should be in pool now
+    
+    await adapter.drainPool();
+    expect(mockContainer.remove).toHaveBeenCalledWith({ force: true });
+  });
 });
