@@ -5,18 +5,19 @@ import { FastifyRequest, FastifyReply, preHandlerHookHandler } from 'fastify';
  */
 export function requireScope(scope: string[]): preHandlerHookHandler {
   return async (request: FastifyRequest, reply: FastifyReply) => {
-    // If no scopes are required, proceed immediately
-    if (scope.length === 0) {
-      return;
+    const token = request.uapRawToken;
+    if (!token) {
+      return reply.status(401).send({ error: 'Missing Authorization header' });
     }
 
-    const granted = request.uapClaims?.scope ?? [];
-    const missing = scope.filter(s => !granted.includes(s));
-
-    if (missing.length > 0) {
-      return reply.status(403).send({
-        error: `Missing scopes: ${missing.join(', ')}`,
-      });
+    try {
+      const claims = await request.server.uapContainer.auth.verifyToken(token, scope);
+      request.uapClaims = claims;
+      request.callerId = claims.sub;
+    } catch (err: unknown) {
+      const error = err as Error & { statusCode?: number };
+      const statusCode = error.statusCode || 403;
+      return reply.status(statusCode).send({ error: error.message });
     }
   };
 }

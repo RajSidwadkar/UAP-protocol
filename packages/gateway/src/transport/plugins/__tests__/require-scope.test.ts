@@ -11,9 +11,23 @@ type SimplePreHandler = (
 describe('requireScope()', () => {
   const done = vi.fn();
 
+  const createMockRequest = (token: string, mockClaims?: any, errorToThrow?: any) => ({
+    uapRawToken: token,
+    server: {
+      uapContainer: {
+        auth: {
+          verifyToken: vi.fn().mockImplementation(async (_t, _s) => {
+            if (errorToThrow) throw errorToThrow;
+            return mockClaims;
+          }),
+        },
+      },
+    },
+  } as unknown as FastifyRequest);
+
   it('1. Empty required scope [] → preHandler returns immediately (proceeds)', async () => {
     const preHandler = requireScope([]);
-    const request = {} as FastifyRequest;
+    const request = createMockRequest('token', { scope: [] });
     const reply = { status: vi.fn().mockReturnThis(), send: vi.fn() } as unknown as FastifyReply;
 
     await (preHandler as unknown as SimplePreHandler)(request, reply, done);
@@ -24,9 +38,9 @@ describe('requireScope()', () => {
 
   it('2. Token with matching scope → preHandler proceeds', async () => {
     const preHandler = requireScope(['tool:read']);
-    const request = {
-      uapClaims: { scope: ['tool:read', 'other:scope'] }
-    } as unknown as FastifyRequest;
+    const request = createMockRequest('token', {
+      scope: ['tool:read', 'other:scope']
+    });
     const reply = { status: vi.fn().mockReturnThis(), send: vi.fn() } as unknown as FastifyReply;
 
     await (preHandler as unknown as SimplePreHandler)(request, reply, done);
@@ -37,9 +51,11 @@ describe('requireScope()', () => {
 
   it('3. Token missing one required scope → preHandler returns 403 with missing scope', async () => {
     const preHandler = requireScope(['tool:read', 'admin:write']);
-    const request = {
-      uapClaims: { scope: ['tool:read'] }
-    } as unknown as FastifyRequest;
+    
+    const scopeError = new Error('Missing scopes: admin:write');
+    (scopeError as any).statusCode = 403;
+    
+    const request = createMockRequest('token', null, scopeError);
     const reply = { status: vi.fn().mockReturnThis(), send: vi.fn() } as unknown as FastifyReply;
 
     await (preHandler as unknown as SimplePreHandler)(request, reply, done);
@@ -52,9 +68,11 @@ describe('requireScope()', () => {
 
   it('4. Token missing multiple required scopes → 403 with all missing scopes listed', async () => {
     const preHandler = requireScope(['tool:read', 'admin:write', 'task:submit']);
-    const request = {
-      uapClaims: { scope: ['other:scope'] }
-    } as unknown as FastifyRequest;
+    
+    const scopeError = new Error('Missing scopes: tool:read, admin:write, task:submit');
+    (scopeError as any).statusCode = 403;
+
+    const request = createMockRequest('token', null, scopeError);
     const reply = { status: vi.fn().mockReturnThis(), send: vi.fn() } as unknown as FastifyReply;
 
     await (preHandler as unknown as SimplePreHandler)(request, reply, done);
@@ -65,24 +83,24 @@ describe('requireScope()', () => {
     });
   });
 
-  it('5. request.uapClaims is null → treated as empty scope → 403', async () => {
+  it('5. request.uapRawToken is missing → returns 401', async () => {
     const preHandler = requireScope(['tool:read']);
-    const request = { uapClaims: null } as unknown as FastifyRequest;
+    const request = { uapRawToken: '' } as unknown as FastifyRequest;
     const reply = { status: vi.fn().mockReturnThis(), send: vi.fn() } as unknown as FastifyReply;
 
     await (preHandler as unknown as SimplePreHandler)(request, reply, done);
 
-    expect(reply.status).toHaveBeenCalledWith(403);
+    expect(reply.status).toHaveBeenCalledWith(401);
     expect(reply.send).toHaveBeenCalledWith({
-      error: 'Missing scopes: tool:read',
+      error: 'Missing Authorization header',
     });
   });
 
   it('6. Token with extra scopes beyond required → still passes', async () => {
     const preHandler = requireScope(['tool:read']);
-    const request = {
-      uapClaims: { scope: ['tool:read', 'admin:write', 'extra:scope'] }
-    } as unknown as FastifyRequest;
+    const request = createMockRequest('token', {
+      scope: ['tool:read', 'admin:write', 'extra:scope']
+    });
     const reply = { status: vi.fn().mockReturnThis(), send: vi.fn() } as unknown as FastifyReply;
 
     await (preHandler as unknown as SimplePreHandler)(request, reply, done);
