@@ -32,6 +32,7 @@ export class RouteToolCallUseCase {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(envelope),
+        signal: AbortSignal.timeout(30_000),
       });
 
       const body = await response.json();
@@ -59,7 +60,10 @@ export class RouteToolCallUseCase {
       if (err instanceof UapSandboxError || err instanceof UapAgentNotFoundError) {
         throw err;
       }
-      throw new UapSandboxError(err instanceof Error ? err.message : String(err));
+      if (err instanceof DOMException && (err.name === 'TimeoutError' || err.name === 'AbortError')) {
+        throw new UapSandboxError(`Agent ${agentId} timed out after 30s`);
+      }
+      throw new UapSandboxError(`Agent ${agentId} unreachable: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 }

@@ -64,3 +64,9 @@ export class UapRegistryError extends UapError {
   }
 }
 
+export class UapConfigurationError extends UapError {
+  constructor(message: string) {
+    super(message, 500, 'UAP_CONFIGURATION_ERROR');
+  }
+}
+
