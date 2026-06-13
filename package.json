@@ -52,9 +52,5 @@
   },
   "//auditNotes": {
     "ajv-redos-GHSA-2g4f-4pwh-qvx6": "UAP never uses ajv $data option. UapRpcTransport.validate() only calls ajv.compile() with static schemas from BuiltinSchemaRegistry. Not exploitable."
-  },
-  "dependencies": {
-    "@opentelemetry/auto-instrumentations-node": "^0.77.0",
-    "@opentelemetry/sdk-node": "^0.219.0"
   }
 }
