@@ -31,12 +31,20 @@ class TtlCache<V> {
 }
 
 export class RedisRegistryAdapter implements IRegistryPort {
-  private readonly redis: Redis;
+  private readonly client: Redis;
   private readonly cache: TtlCache<RegistryEntry>;
 
   constructor(redisUrl: string) {
-    this.redis = new Redis(redisUrl);
+    this.client = new Redis(redisUrl);
     this.cache = new TtlCache(5_000); // 5 second TTL
+
+    this.client.on('error', (err) => {
+      console.error({ kind: 'REDIS_CONNECTION_ERROR', message: err.message });
+    });
+  }
+
+  isHealthy(): boolean {
+    return this.client.status === 'ready';
   }
 
   async register(card: CapabilityCard, endpoint: string): Promise<void> {
@@ -65,7 +73,7 @@ export class RedisRegistryAdapter implements IRegistryPort {
     };
 
     try {
-      await this.redis.set(
+      await this.client.set(
         `registry:${agentId}`,
         JSON.stringify(entry),
         'EX',
@@ -85,7 +93,7 @@ export class RedisRegistryAdapter implements IRegistryPort {
 
     let data: string | null;
     try {
-      data = await this.redis.get(`registry:${agentId}`);
+      data = await this.client.get(`registry:${agentId}`);
     } catch (err) {
       throw new UapRegistryError(`Registry read failed: ${(err as Error).message}`);
     }
@@ -103,9 +111,9 @@ export class RedisRegistryAdapter implements IRegistryPort {
     };
     
     try {
-      const ttlSeconds = await this.redis.ttl(`registry:${agentId}`);
+      const ttlSeconds = await this.client.ttl(`registry:${agentId}`);
       if (ttlSeconds > 0) {
-        await this.redis.set(
+        await this.client.set(
           `registry:${agentId}`,
           JSON.stringify(updatedEntry),
           'EX',
@@ -123,7 +131,7 @@ export class RedisRegistryAdapter implements IRegistryPort {
   async list(): Promise<RegistryEntry[]> {
     let keys: string[];
     try {
-      keys = await this.redis.keys('registry:*');
+      keys = await this.client.keys('registry:*');
     } catch (err) {
       throw new UapRegistryError(`Registry list keys failed: ${(err as Error).message}`);
     }
@@ -132,7 +140,7 @@ export class RedisRegistryAdapter implements IRegistryPort {
       return [];
     }
 
-    const pipeline = this.redis.pipeline();
+    const pipeline = this.client.pipeline();
     keys.forEach(key => pipeline.get(key));
     
     let results: [Error | null, unknown][] | null;
@@ -152,7 +160,7 @@ export class RedisRegistryAdapter implements IRegistryPort {
 
   async deregister(agentId: string): Promise<void> {
     try {
-      await this.redis.del(`registry:${agentId}`);
+      await this.client.del(`registry:${agentId}`);
       this.cache.delete(agentId);
     } catch (err) {
       throw new UapRegistryError(`Registry delete failed: ${(err as Error).message}`);

@@ -1,3 +1,5 @@
+import { UapClientError } from './uap-client.js';
+
 export interface ITokenProvider {
   getToken(scope: string[]): Promise<string>;
   clearCache(): void;
@@ -51,7 +53,7 @@ export class ClientCredentialsTokenProvider implements ITokenProvider {
 
     if (!response.ok) {
       const body = await response.text();
-      throw new Error(`Failed to fetch token: ${response.status} ${body}`);
+      throw new UapClientError(response.status, body);
     }
 
     const data = await response.json();
