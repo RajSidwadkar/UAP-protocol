@@ -20,6 +20,13 @@ export class UapClientError extends Error {
   }
 }
 
+export class UapAuthError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'UapAuthError';
+  }
+}
+
 export interface Task<TArtifact> {
   id: string;
   status: string;
@@ -116,9 +123,6 @@ export class UapClient {
 
     try {
       const data = JSON.parse(body);
-      // UAP response might be wrapped or direct depending on gateway implementation.
-      // If it's UapResponse, we might want to return data.result.
-      // For now, returning parsed body as T.
       return data as T;
     } catch (err) {
       throw new UapClientError(response.status, body);

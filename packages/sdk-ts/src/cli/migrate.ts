@@ -15,6 +15,15 @@ class MigrationError extends Error {
   }
 }
 
+function buildCliContainer(keyHex: string, issuerDid: string) {
+  const signer = new Ed25519SignerAdapter(keyHex);
+  return {
+    mcpBridge: (serverUrl: string) =>
+      new McpBridgeAdapter({ mcpServerUrl: serverUrl, signer, issuerDid }),
+    a2aBridge: new A2aBridgeAdapter(signer),
+  };
+}
+
 export const program = new Command();
 
 program
@@ -32,10 +41,9 @@ function logStderr(event: string, source: string, toolCount: number, outputPath:
   }));
 }
 
-async function ensureSigner(keyPath: string): Promise<Ed25519SignerAdapter> {
+async function readKey(keyPath: string): Promise<string> {
   try {
-    const keyHex = fs.readFileSync(keyPath, 'utf8').trim();
-    return new Ed25519SignerAdapter(keyHex);
+    return fs.readFileSync(keyPath, 'utf8').trim();
   } catch (err: unknown) {
     const errorMessage = err instanceof Error ? err.message : String(err);
     throw new MigrationError(`Failed to read key from ${keyPath}: ${errorMessage}`);
@@ -58,12 +66,9 @@ program
     }
 
     try {
-      const signer = await ensureSigner(options.key);
-      const bridge = new McpBridgeAdapter({
-        mcpServerUrl: serverUrl,
-        signer,
-        issuerDid: options.issuer,
-      });
+      const keyHex = await readKey(options.key);
+      const container = buildCliContainer(keyHex, options.issuer);
+      const bridge = container.mcpBridge(serverUrl);
 
       const card = await bridge.buildCapabilityCard();
       
@@ -108,14 +113,11 @@ program
     }
 
     try {
-      const signer = await ensureSigner(options.key);
-      const bridge = new A2aBridgeAdapter(signer);
+      const keyHex = await readKey(options.key);
+      const container = buildCliContainer(keyHex, options.issuer);
+      const bridge = container.a2aBridge;
 
       const a2aCard = JSON.parse(fs.readFileSync(jsonPath, 'utf8')) as A2aAgentCard;
-      // If issuer DID is provided, we should probably use it, but A2A uses a2aCard.name as issuer.
-      // The prompt says convertAgentCard(a2aCard) which uses a2aCard.name for issuer.
-      // If user provided --issuer, maybe we should override? 
-      // Prompt says: "issuer: a2aCard.name". I'll follow that.
       
       const card = await bridge.convertAgentCard(a2aCard);
       
