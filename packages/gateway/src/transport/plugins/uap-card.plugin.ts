@@ -64,9 +64,7 @@ const uapCardPlugin: FastifyPluginAsync<CardPluginOptions> = async (app, opts) =
   });
 };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export default fp(uapCardPlugin as any, {
+export default fp(uapCardPlugin, {
   name: 'uap-card',
   dependencies: ['uap-auth'],
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-}) as any;
+});

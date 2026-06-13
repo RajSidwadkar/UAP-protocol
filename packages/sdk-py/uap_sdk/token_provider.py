@@ -4,7 +4,7 @@ import json
 import base64
 from typing import Optional
 from .ports import ITokenProvider
-from .client import UapClientError
+from .errors import UapClientError, UapAuthError
 
 
 class ClientCredentialsTokenProvider(ITokenProvider):
@@ -41,18 +41,23 @@ class ClientCredentialsTokenProvider(ITokenProvider):
         }
 
         async with httpx.AsyncClient() as client:
-            response = await client.post(
-                self.token_url,
-                data=data,
-                headers={"Content-Type": "application/x-www-form-urlencoded"}
-            )
+            try:
+                response = await client.post(
+                    self.token_url,
+                    data=data,
+                    headers={"Content-Type": "application/x-www-form-urlencoded"}
+                )
+            except Exception as err:
+                raise UapClientError(f"Failed to fetch token: {err}", 500)
 
-            if response.status_code == 401 and not is_retry:
-                self.clear_cache()
-                return await self._fetch_token(scope, True)
+            if response.status_code == 401:
+                if not is_retry:
+                    self.clear_cache()
+                    return await self._fetch_token(scope, True)
+                raise UapAuthError("Token endpoint returned 401")
 
             if response.is_error:
-                raise UapClientError(response.status_code, response.text)
+                raise UapClientError(response.text, response.status_code)
 
             res_data = response.json()
             token = res_data["access_token"]
