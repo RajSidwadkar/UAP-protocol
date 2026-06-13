@@ -4,6 +4,7 @@ import json
 import base64
 from typing import Optional
 from .ports import ITokenProvider
+from .client import UapClientError
 
 
 class ClientCredentialsTokenProvider(ITokenProvider):
@@ -51,11 +52,7 @@ class ClientCredentialsTokenProvider(ITokenProvider):
                 return await self._fetch_token(scope, True)
 
             if response.is_error:
-                raise httpx.HTTPStatusError(
-                    f"Failed to fetch token: {response.status_code}",
-                    request=response.request,
-                    response=response
-                )
+                raise UapClientError(response.status_code, response.text)
 
             res_data = response.json()
             token = res_data["access_token"]

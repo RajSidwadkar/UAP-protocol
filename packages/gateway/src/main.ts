@@ -6,7 +6,7 @@ import { AuditEvent } from './domain/audit-event';
  * Main entry point for the UAP Gateway.
  */
 async function start() {
-  const container = buildContainer();
+  const container = await buildContainer();
   const gateway = await buildGateway(container);
 
   const port = Number(process.env.UAP_GATEWAY_PORT) || 3000;

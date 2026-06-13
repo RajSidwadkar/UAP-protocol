@@ -31,11 +31,35 @@ export interface AppContainer {
   routeToolCall: RouteToolCallUseCase;
 }
 
+type Env = NodeJS.ProcessEnv;
+
+async function buildRegistry(env: Env): Promise<IRegistryPort> {
+  if (!env.REDIS_URL) return new InMemoryRegistryAdapter();
+  
+  const redis = new RedisRegistryAdapter(env.REDIS_URL);
+  
+  // Give Redis 3 seconds to connect; fallback to InMemory on timeout
+  const connected = await Promise.race([
+    new Promise<boolean>(resolve => {
+      redis['client'].once('ready', () => resolve(true));
+      redis['client'].once('error', () => resolve(false));
+    }),
+    new Promise<boolean>(resolve => setTimeout(() => resolve(false), 3000)),
+  ]);
+
+  if (!connected) {
+    console.warn({ kind: 'REGISTRY_FALLBACK', reason: 'Redis unreachable, using InMemoryRegistryAdapter' });
+    return new InMemoryRegistryAdapter();
+  }
+
+  return redis;
+}
+
 /**
  * The single Dependency Injection root.
  * All concrete class instantiation lives here.
  */
-export function buildContainer(): AppContainer {
+export async function buildContainer(): Promise<AppContainer> {
   const env = process.env;
   const appLogger = new PinoLoggerAdapter();
 
@@ -75,9 +99,7 @@ export function buildContainer(): AppContainer {
   audit.subscribe(new OtelTraceAdapter());
 
   // 5. Registry Adapter
-  const registry: IRegistryPort = env.REDIS_URL
-    ? new RedisRegistryAdapter(env.REDIS_URL)
-    : new InMemoryRegistryAdapter();
+  const registry = await buildRegistry(env);
 
   // 6. RPC Transport
   const rpcTransport = new UapRpcTransport();
