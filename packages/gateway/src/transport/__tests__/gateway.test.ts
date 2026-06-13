@@ -197,8 +197,8 @@ describe('Gateway', () => {
   describe('Envelope validation at route boundary', () => {
     const VALID_ENVELOPE = {
       uap: {
-        version: '1.0' as '1.0',
-        type: 'tool_call' as 'tool_call' | 'agent_delegate' | 'stream' | 'response',
+        version: '1.0' as const,
+        type: 'tool_call' as const,
         id: '01ARZ3NDEKTSV4RRFFQ69G5FAV',
         trace: { traceparent: '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01' },
         auth: {

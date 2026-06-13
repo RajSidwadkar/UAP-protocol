@@ -1,4 +1,4 @@
-import { UapClientError } from './uap-client.js';
+import { UapClientError, UapAuthError } from './uap-client.js';
 
 export interface ITokenProvider {
   getToken(scope: string[]): Promise<string>;
@@ -38,35 +38,43 @@ export class ClientCredentialsTokenProvider implements ITokenProvider {
       scope: scope.join(' '),
     });
 
-    const response = await fetch(this.tokenUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: params.toString(),
-    });
-
-    if (response.status === 401 && !isRetry) {
-      this.clearCache();
-      return this.fetchToken(scope, true);
-    }
-
-    if (!response.ok) {
-      const body = await response.text();
-      throw new UapClientError(response.status, body);
-    }
-
-    const data = await response.json();
-    const token = data.access_token as string;
-    
     try {
-      const payload = JSON.parse(Buffer.from(token.split('.')[1] || '', 'base64').toString());
-      this.expiry = payload.exp;
-      this.cachedToken = token;
-    } catch {
-      // If parsing fails, don't cache but return the token
-    }
+      const response = await fetch(this.tokenUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: params.toString(),
+        signal: AbortSignal.timeout(10_000),
+      });
 
-    return token;
+      if (response.status === 401 && !isRetry) {
+        this.clearCache();
+        return this.fetchToken(scope, true);
+      }
+
+      if (!response.ok) {
+        const body = await response.text();
+        throw new UapClientError(response.status, body);
+      }
+
+      const data = await response.json();
+      const token = data.access_token as string;
+      
+      try {
+        const payload = JSON.parse(Buffer.from(token.split('.')[1] || '', 'base64').toString());
+        this.expiry = payload.exp;
+        this.cachedToken = token;
+      } catch {
+        // If parsing fails, don't cache but return the token
+      }
+
+      return token;
+    } catch (err) {
+      if (err instanceof Error && err.name === 'TimeoutError') {
+        throw new UapAuthError('Token endpoint timed out after 10s');
+      }
+      throw err;
+    }
   }
 }

@@ -40,13 +40,15 @@ class ClientCredentialsTokenProvider(ITokenProvider):
             "scope": " ".join(scope),
         }
 
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=10.0) as client:
             try:
                 response = await client.post(
                     self.token_url,
                     data=data,
                     headers={"Content-Type": "application/x-www-form-urlencoded"}
                 )
+            except httpx.TimeoutException:
+                raise UapAuthError("Token endpoint timed out after 10s")
             except Exception as err:
                 raise UapClientError(f"Failed to fetch token: {err}", 500)
 
