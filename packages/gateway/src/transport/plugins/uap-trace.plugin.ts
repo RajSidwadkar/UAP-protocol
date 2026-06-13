@@ -33,8 +33,6 @@ const uapTracePlugin: FastifyPluginAsync = async (fastify) => {
   });
 };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export default fp(uapTracePlugin as any, {
+export default fp(uapTracePlugin, {
   name: 'uap-trace',
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-}) as any;
+});

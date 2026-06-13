@@ -5,6 +5,7 @@ from types import TracebackType
 
 from .ports import ITokenProvider, ITracePort
 from .envelope_builder import UapEnvelopeBuilder
+from .errors import UapClientError
 
 
 @dataclass
@@ -13,13 +14,6 @@ class UapClientOptions:
     token_provider: ITokenProvider
     card_sig: str
     tracer: Optional[ITracePort] = None
-
-
-class UapClientError(Exception):
-    def __init__(self, status_code: int, body: str):
-        self.status_code = status_code
-        self.body = body
-        super().__init__(f"UAP Client Error: {status_code} {body}")
 
 
 class UapClient:
@@ -89,6 +83,6 @@ class UapClient:
             return await self._request_with_retry(path, envelope_factory, scope, True)
 
         if response.is_error:
-            raise UapClientError(response.status_code, response.text)
+            raise UapClientError(response.text, response.status_code)
 
         return response.json()
