@@ -3,30 +3,68 @@ import { ISandboxPort, SandboxResult } from '../../application/ports/i-sandbox-p
 import { PermissionScope } from '../../domain/capability-card';
 import { UapSandboxError, UapValidationError } from '../../domain/errors';
 
+/**
+ * Manages a pool of warm Docker containers.
+ * Industrialized implementation using exec for reuse.
+ */
 class ContainerPool {
-  private available: Docker.Container[] = []
-  private readonly maxSize: number
+  private available: Docker.Container[] = [];
+  private readonly maxSize: number;
 
-  constructor(maxSize: number) {
-    this.maxSize = maxSize
+  constructor(
+    private readonly docker: Docker,
+    private readonly baseImage: string,
+    maxSize: number
+  ) {
+    this.maxSize = maxSize;
   }
 
-  // Returns a container from the pool or null if empty
-  acquire(): Docker.Container | null {
-    return this.available.pop() ?? null
+  async acquire(config: Docker.ContainerCreateOptions): Promise<Docker.Container> {
+    let container = this.available.pop();
+    
+    if (container) {
+      // Check if container is still alive
+      try {
+        const info = await container.inspect();
+        if (!info.State.Running) {
+          await container.start();
+        }
+        return container;
+      } catch {
+        // Container gone, fall through to create new one
+      }
+    }
+
+    // Create a new "warm" container with a generic idle command
+    const warmConfig: Docker.ContainerCreateOptions = {
+      ...config,
+      Image: this.baseImage,
+      Cmd: ['tail', '-f', '/dev/null'], // Idle loop
+      Entrypoint: [],
+    };
+
+    const newContainer = await this.docker.createContainer(warmConfig);
+    await newContainer.start();
+    return newContainer;
   }
 
-  // Returns a container to the pool if under max; otherwise calls container.remove({ force: true })
   async release(container: Docker.Container): Promise<void> {
     if (this.available.length < this.maxSize) {
-      this.available.push(container)
+      this.available.push(container);
     } else {
-      await container.remove({ force: true }).catch(() => {})
+      await container.remove({ force: true }).catch(() => {});
     }
   }
 
   size(): number {
-    return this.available.length
+    return this.available.length;
+  }
+
+  async drain(): Promise<void> {
+    while (this.available.length > 0) {
+      const c = this.available.pop();
+      if (c) await c.remove({ force: true }).catch(() => {});
+    }
   }
 }
 
@@ -38,23 +76,18 @@ export class DockerSandboxAdapter implements ISandboxPort {
   constructor(socketPath: string, baseImage = 'uap-sandbox:latest', poolSize = 5) {
     this.docker = new Docker({ socketPath });
     this.baseImage = baseImage;
-    this.pool = new ContainerPool(poolSize);
+    this.pool = new ContainerPool(this.docker, this.baseImage, poolSize);
   }
 
   private static validateToolId(toolId: string): void {
-    // Allow only: letters, numbers, hyphens, underscores, colons
-    // This covers namespaced tool IDs like 'db:query' or 'file:read'
-    // Reject anything that could be a path: /, \, .., ~, $, spaces, etc.
-    const SAFE_TOOL_ID = /^[a-zA-Z0-9_\-:]+$/
+    const SAFE_TOOL_ID = /^[a-zA-Z0-9_\-:]+$/;
     if (!SAFE_TOOL_ID.test(toolId)) {
       throw new UapValidationError(
         `Invalid toolId "${toolId}": only alphanumeric characters, hyphens, underscores, and colons are permitted`
-      )
+      );
     }
     if (toolId.length > 128) {
-      throw new UapValidationError(
-        `toolId exceeds maximum length of 128 characters`
-      )
+      throw new UapValidationError(`toolId exceeds maximum length of 128 characters`);
     }
   }
 
@@ -64,7 +97,6 @@ export class DockerSandboxAdapter implements ISandboxPort {
     const start = Date.now();
     const Memory = 128 * 1024 * 1024;
     const CpuQuota = 50000;
-    const AutoRemove = false; // Managed by pool
     const ReadonlyRootfs = !scope.includes('fs:write');
     const NetworkDisabled = !scope.includes('network:egress');
     const CapDrop = ['ALL'];
@@ -72,43 +104,60 @@ export class DockerSandboxAdapter implements ISandboxPort {
 
     let container: Docker.Container | null = null;
     try {
+      container = await this.pool.acquire({
+        Image: this.baseImage,
+        NetworkDisabled,
+        HostConfig: {
+          Memory,
+          CpuQuota,
+          ReadonlyRootfs,
+          CapDrop,
+          CapAdd,
+        },
+      });
+
       console.info({ kind: 'SANDBOX_CREATED', toolId, durationMs: 0 });
 
-      container = this.pool.acquire();
+      // Use exec to run the actual tool command inside the warm container
+      const exec = await container.exec({
+        Cmd: ['node', '/tool/runner.js', toolId, JSON.stringify(input)],
+        AttachStdout: true,
+        AttachStderr: true,
+      });
 
-      if (!container) {
-        container = await this.docker.createContainer({
-          Image: this.baseImage,
-          Cmd: ['node', '/tool/runner.js', toolId, JSON.stringify(input)],
-          NetworkDisabled,
-          HostConfig: {
-            Memory,
-            CpuQuota,
-            AutoRemove,
-            ReadonlyRootfs,
-            CapDrop,
-            CapAdd,
-          },
-        });
-      }
+      const stream = await exec.start({});
+      
+      // Industrialized stream capture
+      const output = await new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
+        let stdout = '';
+        let stderr = '';
+        
+        // dockerode exec stream is multiplexed if TTY is false
+        this.docker.modem.demuxStream(stream, {
+          write: (chunk: Buffer) => { stdout += chunk.toString(); }
+        } as any, {
+          write: (chunk: Buffer) => { stderr += chunk.toString(); }
+        } as any);
 
-      await container.start();
-      const logs = await container.logs({ stdout: true, stderr: true, follow: true });
-      const waitResult = await container.wait();
-      const StatusCode = waitResult.StatusCode;
+        stream.on('end', () => resolve({ stdout, stderr }));
+        stream.on('error', (err) => reject(err));
+      });
+
+      const inspect = await exec.inspect();
+      const StatusCode = inspect.ExitCode;
       const durationMs = Date.now() - start;
 
       console.info({ kind: 'SANDBOX_COMPLETED', toolId, durationMs, exitCode: StatusCode });
 
       if (StatusCode !== 0) {
-        console.error({ kind: 'SANDBOX_FAILED', toolId, exitCode: StatusCode, stderr: '' });
-        throw new UapSandboxError(`Tool ${toolId} exited with code ${StatusCode}`);
+        console.error({ kind: 'SANDBOX_FAILED', toolId, exitCode: StatusCode, stderr: output.stderr });
+        throw new UapSandboxError(`Tool ${toolId} exited with code ${StatusCode}: ${output.stderr}`);
       }
 
       return {
-        stdout: logs.toString(),
-        stderr: '',
-        exitCode: StatusCode,
+        stdout: output.stdout,
+        stderr: output.stderr,
+        exitCode: StatusCode ?? 0,
         durationMs,
       };
     } catch (err) {
@@ -119,18 +168,13 @@ export class DockerSandboxAdapter implements ISandboxPort {
       throw new UapSandboxError(`Sandbox execution failed: ${message}`);
     } finally {
       if (container) {
-        await this.teardown(container.id).catch(() => {});
+        await this.pool.release(container).catch(() => {});
       }
     }
   }
 
   async drainPool(): Promise<void> {
-    while (this.pool.size() > 0) {
-      const container = this.pool.acquire();
-      if (container) {
-        await container.remove({ force: true }).catch(() => {});
-      }
-    }
+    await this.pool.drain();
   }
 
   async teardown(sandboxId: string): Promise<void> {
@@ -138,7 +182,7 @@ export class DockerSandboxAdapter implements ISandboxPort {
       const container = this.docker.getContainer(sandboxId);
       await container.remove({ force: true });
     } catch (err) {
-      // silently ignore not-found or other errors
+      // silently ignore
     }
   }
 

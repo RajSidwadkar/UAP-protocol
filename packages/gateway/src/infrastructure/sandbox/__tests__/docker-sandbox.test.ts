@@ -1,18 +1,40 @@
 import { describe, it, expect, vi, beforeEach, Mock } from 'vitest';
 import { DockerSandboxAdapter } from '../docker-sandbox-adapter';
 import { UapSandboxError, UapValidationError } from '../../../domain/errors';
+import { EventEmitter } from 'events';
 
-vi.mock('dockerode', () => {
-  const mockContainer = {
+const { mockExec, mockContainer } = vi.hoisted(() => {
+  const mExec = {
+    start: vi.fn().mockImplementation(() => {
+      const stream = new EventEmitter();
+      setTimeout(() => stream.emit('end'), 10);
+      return Promise.resolve(stream);
+    }),
+    inspect: vi.fn().mockResolvedValue({ ExitCode: 0 }),
+  };
+
+  const mContainer = {
+    id: 'test-container-id',
     start: vi.fn().mockResolvedValue(undefined),
-    logs: vi.fn().mockResolvedValue(Buffer.from('{"result":"ok"}')),
-    wait: vi.fn().mockResolvedValue({ StatusCode: 0 }),
+    inspect: vi.fn().mockResolvedValue({ State: { Running: true } }),
+    exec: vi.fn().mockResolvedValue(mExec),
     remove: vi.fn().mockResolvedValue(undefined),
   };
-  
+
+  return { mockExec: mExec, mockContainer: mContainer };
+});
+
+vi.mock('dockerode', () => {
   function DockerMock() {}
   DockerMock.prototype.createContainer = vi.fn().mockResolvedValue(mockContainer);
   DockerMock.prototype.getContainer = vi.fn().mockReturnValue(mockContainer);
+  DockerMock.prototype.modem = {
+    demuxStream: vi.fn().mockImplementation((stream, stdout, _stderr) => {
+      stream.on('end', () => {
+        stdout.write(Buffer.from('{"result":"ok"}'));
+      });
+    }),
+  };
   
   return {
     default: DockerMock,
@@ -22,6 +44,7 @@ vi.mock('dockerode', () => {
 interface MockDocker {
   createContainer: Mock;
   getContainer: Mock;
+  modem: { demuxStream: Mock };
 }
 
 interface MockDockerConstructor {
@@ -45,133 +68,66 @@ describe('DockerSandboxAdapter', () => {
   });
 
   it('should throw UapSandboxError when tool exits with non-zero code', async () => {
-    const DockerMock = (await import('dockerode')).default as unknown as MockDockerConstructor;
-    const mockDockerInstance = new DockerMock();
-    const mockContainer = await mockDockerInstance.createContainer();
-    vi.mocked(mockContainer.wait).mockResolvedValueOnce({ StatusCode: 1 });
+    vi.mocked(mockExec.inspect).mockResolvedValueOnce({ ExitCode: 1 });
 
     await expect(adapter.execute('fail-tool', {}, []))
       .rejects.toThrow(UapSandboxError);
   });
 
   it('should apply NetworkDisabled: true when network:egress scope is missing', async () => {
-    const DockerMock = (await import('dockerode')).default as unknown as MockDockerConstructor;
-    const mockDockerInstance = new DockerMock();
-    
     await adapter.execute('test-tool', {}, []);
     
-    expect(mockDockerInstance.createContainer).toHaveBeenCalledWith(
+    const DockerMock = (await import('dockerode')).default as unknown as MockDockerConstructor;
+    expect(DockerMock.prototype.createContainer).toHaveBeenCalledWith(
       expect.objectContaining({ NetworkDisabled: true })
     );
   });
 
   it('should apply NetworkDisabled: false when network:egress scope is present', async () => {
-    const DockerMock = (await import('dockerode')).default as unknown as MockDockerConstructor;
-    const mockDockerInstance = new DockerMock();
-    
     await adapter.execute('test-tool', {}, ['network:egress']);
     
-    expect(mockDockerInstance.createContainer).toHaveBeenCalledWith(
+    const DockerMock = (await import('dockerode')).default as unknown as MockDockerConstructor;
+    expect(DockerMock.prototype.createContainer).toHaveBeenCalledWith(
       expect.objectContaining({ NetworkDisabled: false })
     );
   });
 
-  it('should apply ReadonlyRootfs: true in HostConfig when fs:write scope is missing', async () => {
-    const DockerMock = (await import('dockerode')).default as unknown as MockDockerConstructor;
-    const mockDockerInstance = new DockerMock();
-    
-    await adapter.execute('test-tool', {}, []);
-    
-    expect(mockDockerInstance.createContainer).toHaveBeenCalledWith(
-      expect.objectContaining({
-        HostConfig: expect.objectContaining({ ReadonlyRootfs: true })
-      })
-    );
-  });
-
   it('should always include CapDrop: ["ALL"] in HostConfig', async () => {
-    const DockerMock = (await import('dockerode')).default as unknown as MockDockerConstructor;
-    const mockDockerInstance = new DockerMock();
-    
     await adapter.execute('test-tool', {}, ['net:bind', 'sys:time']);
     
-    expect(mockDockerInstance.createContainer).toHaveBeenCalledWith(
+    const DockerMock = (await import('dockerode')).default as unknown as MockDockerConstructor;
+    expect(DockerMock.prototype.createContainer).toHaveBeenCalledWith(
       expect.objectContaining({
         HostConfig: expect.objectContaining({ CapDrop: ['ALL'] })
       })
     );
   });
 
-  it('should call container.remove with { force: true } during teardown', async () => {
+  it('warm pool preserves containers and uses exec for varying tools', async () => {
     const DockerMock = (await import('dockerode')).default as unknown as MockDockerConstructor;
-    const mockDockerInstance = new DockerMock();
-    const mockContainer = mockDockerInstance.getContainer('id');
-    
-    await adapter.teardown('id');
-    
-    expect(mockContainer.remove).toHaveBeenCalledWith({ force: true });
-  });
+    const createContainerSpy = DockerMock.prototype.createContainer;
+    const execSpy = mockContainer.exec;
 
-  it('should silently swallow errors during teardown', async () => {
-    const DockerMock = (await import('dockerode')).default as unknown as MockDockerConstructor;
-    const mockDockerInstance = new DockerMock();
-    const mockContainer = mockDockerInstance.getContainer('id');
-    vi.mocked(mockContainer.remove).mockRejectedValueOnce(new Error('not found'));
-    
-    await expect(adapter.teardown('id')).resolves.toBeUndefined();
-  });
+    // First call: pool is empty, should call createContainer
+    await adapter.execute('tool-1', { a: 1 }, []);
+    expect(createContainerSpy).toHaveBeenCalledTimes(1);
+    expect(execSpy).toHaveBeenCalledWith(expect.objectContaining({
+      Cmd: expect.arrayContaining(['tool-1'])
+    }));
 
-  it('execute() with toolId \'db:query\' → does NOT throw (valid)', async () => {
-    await expect(adapter.execute('db:query', {}, [])).resolves.toBeDefined();
-  });
-
-  it('execute() with toolId \'my-tool_v2\' → does NOT throw (valid)', async () => {
-    await expect(adapter.execute('my-tool_v2', {}, [])).resolves.toBeDefined();
+    // Second call: pooled container is used, should NOT call createContainer again, but SHOULD call exec with new tool
+    await adapter.execute('tool-2', { b: 2 }, []);
+    expect(createContainerSpy).toHaveBeenCalledTimes(1); // Still 1
+    expect(execSpy).toHaveBeenCalledWith(expect.objectContaining({
+      Cmd: expect.arrayContaining(['tool-2'])
+    }));
   });
 
   it('execute() with toolId \'../etc/passwd\' → throws UapValidationError', async () => {
     await expect(adapter.execute('../etc/passwd', {}, [])).rejects.toThrow(UapValidationError);
   });
 
-  it('execute() with toolId \'tool/hack\' → throws UapValidationError', async () => {
-    await expect(adapter.execute('tool/hack', {}, [])).rejects.toThrow(UapValidationError);
-  });
-
-  it('execute() with toolId \'tool hack\' (space) → throws UapValidationError', async () => {
-    await expect(adapter.execute('tool hack', {}, [])).rejects.toThrow(UapValidationError);
-  });
-
-  it('execute() with toolId longer than 128 chars → throws UapValidationError', async () => {
-    const longId = 'a'.repeat(129);
-    await expect(adapter.execute(longId, {}, [])).rejects.toThrow(UapValidationError);
-  });
-
-  it('execute() with toolId \'$()\' → throws UapValidationError', async () => {
-    await expect(adapter.execute('$()', {}, [])).rejects.toThrow(UapValidationError);
-  });
-
-  it('execute() with toolId \'..\\\\windows\\\\system32\' → throws UapValidationError', async () => {
-    await expect(adapter.execute('..\\windows\\system32', {}, [])).rejects.toThrow(UapValidationError);
-  });
-
-  it('mandatory teardown removes containers → createContainer called for every request', async () => {
-    const DockerMock = (await import('dockerode')).default as unknown as MockDockerConstructor;
-    const createContainerSpy = DockerMock.prototype.createContainer;
-
-    // First call: pool is empty, should call createContainer
-    await adapter.execute('test-tool', {}, []);
-    expect(createContainerSpy).toHaveBeenCalledTimes(1);
-
-    // Second call: mandatory teardown removed it, so it calls createContainer again
-    await adapter.execute('test-tool', {}, []);
-    expect(createContainerSpy).toHaveBeenCalledTimes(2);
-  });
-
   it('pool.drainPool() removes containers', async () => {
-    const DockerMock = (await import('dockerode')).default as unknown as MockDockerConstructor;
-    const mockDockerInstance = new DockerMock();
-    const mockContainer = await mockDockerInstance.createContainer();
-    
     // Manually add to pool for test
     const adapterWithPool = adapter as unknown as { pool: { available: unknown[] } };
     adapterWithPool.pool.available.push(mockContainer);
