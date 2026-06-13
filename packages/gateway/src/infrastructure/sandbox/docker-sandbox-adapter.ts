@@ -20,7 +20,7 @@ class ContainerPool {
   }
 
   async acquire(config: Docker.ContainerCreateOptions): Promise<Docker.Container> {
-    let container = this.available.pop();
+    const container = this.available.pop();
     
     if (container) {
       // Check if container is still alive
@@ -135,9 +135,9 @@ export class DockerSandboxAdapter implements ISandboxPort {
         // dockerode exec stream is multiplexed if TTY is false
         this.docker.modem.demuxStream(stream, {
           write: (chunk: Buffer) => { stdout += chunk.toString(); }
-        } as any, {
+        }, {
           write: (chunk: Buffer) => { stderr += chunk.toString(); }
-        } as any);
+        });
 
         stream.on('end', () => resolve({ stdout, stderr }));
         stream.on('error', (err) => reject(err));
