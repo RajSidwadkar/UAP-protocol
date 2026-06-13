@@ -197,13 +197,13 @@ describe('Gateway', () => {
   describe('Envelope validation at route boundary', () => {
     const VALID_ENVELOPE = {
       uap: {
-        version: '1.0',
-        type: 'tool_call',
+        version: '1.0' as '1.0',
+        type: 'tool_call' as 'tool_call' | 'agent_delegate' | 'stream' | 'response',
         id: '01ARZ3NDEKTSV4RRFFQ69G5FAV',
         trace: { traceparent: '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01' },
         auth: {
           token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyLTEiLCJleHAiOjQwNzY2MDAwMDB9.sig',
-          scope: ['tool:read'],
+          scope: ['tool:read' as const],
           card_sig: 'ed25519:abc'
         }
       },
@@ -258,7 +258,10 @@ describe('Gateway', () => {
     it('4. POST /agent/delegate with valid envelope → use-case called', async () => {
       const claims = new AuthClaims('user-1', ['task:submit'], 0, 0, 'iss');
       vi.mocked(container.auth.verifyToken).mockResolvedValue(claims);
-      vi.mocked(container.delegateTask.execute).mockResolvedValue({ result: 'ok' });
+      vi.mocked(container.delegateTask.execute).mockResolvedValue({ 
+        uap: { ...VALID_ENVELOPE.uap, type: 'agent_delegate' }, 
+        result: { status: 'ok' } 
+      });
       const gateway = await buildGateway(container);
       const response = await gateway.inject({
         method: 'POST',

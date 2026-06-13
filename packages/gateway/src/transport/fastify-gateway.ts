@@ -1,5 +1,6 @@
 import { readFileSync } from 'fs';
 import Fastify, { FastifyInstance } from 'fastify';
+import * as pino from 'pino';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import cors from '@fastify/cors';
@@ -41,7 +42,7 @@ export async function buildGateway(container: AppContainer): Promise<FastifyInst
   const tlsOptions = loadTlsOptions();
   const fastify = Fastify({
     https: tlsOptions,
-    logger: { level: 'info' },
+    logger: { level: 'info', stream: (pino.default || pino).destination({ sync: false }) },
     trustProxy: true,
     bodyLimit: 1_048_576, // 1MB
     requestIdLogLabel: 'traceId',

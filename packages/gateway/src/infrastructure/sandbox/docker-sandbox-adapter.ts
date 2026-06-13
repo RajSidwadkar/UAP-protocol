@@ -119,7 +119,7 @@ export class DockerSandboxAdapter implements ISandboxPort {
       throw new UapSandboxError(`Sandbox execution failed: ${message}`);
     } finally {
       if (container) {
-        await this.pool.release(container);
+        await this.teardown(container.id).catch(() => {});
       }
     }
   }

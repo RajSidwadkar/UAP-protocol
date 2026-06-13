@@ -1,7 +1,8 @@
 import pino from 'pino'
 import type { ILoggerPort } from '../../application/ports/i-logger-port'
 
-const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' })
+const dest = pino.destination({ sync: false })
+const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' }, dest)
 
 export class PinoLoggerAdapter implements ILoggerPort {
   error(message: string, context?: Record<string, unknown>): void {

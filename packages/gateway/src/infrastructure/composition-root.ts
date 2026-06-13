@@ -106,7 +106,7 @@ export async function buildContainer(): Promise<AppContainer> {
 
   // Use cases
   const invokeTool = new InvokeToolUseCase(sandbox, audit);
-  const delegateTask = new DelegateTaskUseCase(registry);
+  const delegateTask = new DelegateTaskUseCase(registry, audit);
   const routeToolCall = new RouteToolCallUseCase(registry, audit);
 
   return {
