@@ -2,6 +2,14 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { CapabilityCard, ICardSignerPort, ToolManifest } from '../domain/capability-card.js';
 
+export class McpBridgeTimeoutError extends Error {
+  readonly code = 'MCP_BRIDGE_TIMEOUT';
+  constructor(label: string, ms: number) {
+    super(`MCP operation '${label}' timed out after ${ms}ms`);
+    this.name = 'McpBridgeTimeoutError';
+  }
+}
+
 export interface McpBridgeOptions {
   mcpServerUrl: string;
   signer: ICardSignerPort;
@@ -22,10 +30,28 @@ export class McpBridgeAdapter {
     );
   }
 
+  private withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        reject(new McpBridgeTimeoutError(label, ms));
+      }, ms);
+      promise.then(
+        (val) => {
+          clearTimeout(timer);
+          resolve(val);
+        },
+        (err) => {
+          clearTimeout(timer);
+          reject(err);
+        }
+      );
+    });
+  }
+
   async buildCapabilityCard(): Promise<CapabilityCard> {
     try {
-      await this.client.connect(this.transport);
-      const toolsResult = await this.client.listTools();
+      await this.withTimeout(this.client.connect(this.transport), 10_000, 'connect');
+      const toolsResult = await this.withTimeout(this.client.listTools(), 15_000, 'listTools');
       const toolCount = toolsResult.tools.length;
 
       const tools: ToolManifest[] = toolsResult.tools.map((t) => ({
@@ -54,10 +80,15 @@ export class McpBridgeAdapter {
 
       return signedCard;
     } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : String(err);
-      console.info('MCP_BRIDGE_ERROR', {
+      if (err instanceof McpBridgeTimeoutError) {
+        console.warn({ kind: 'MCP_BRIDGE_ERROR', reason: 'timeout', message: err.message });
+        throw err;
+      }
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn({
         kind: 'MCP_BRIDGE_ERROR',
-        error: errorMessage,
+        reason: 'error',
+        message,
       });
       throw err;
     }
@@ -65,10 +96,14 @@ export class McpBridgeAdapter {
 
   async invokeTool(toolName: string, args: Record<string, unknown>): Promise<unknown> {
     try {
-      const result = await this.client.callTool({
-        name: toolName,
-        arguments: args,
-      });
+      const result = await this.withTimeout(
+        this.client.callTool({
+          name: toolName,
+          arguments: args,
+        }),
+        30_000,
+        'callTool'
+      );
 
       console.info('MCP_TOOL_PROXIED', {
         kind: 'MCP_TOOL_PROXIED',
@@ -78,10 +113,15 @@ export class McpBridgeAdapter {
 
       return result.content;
     } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : String(err);
-      console.info('MCP_BRIDGE_ERROR', {
+      if (err instanceof McpBridgeTimeoutError) {
+        console.warn({ kind: 'MCP_BRIDGE_ERROR', reason: 'timeout', message: err.message });
+        throw err;
+      }
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn({
         kind: 'MCP_BRIDGE_ERROR',
-        error: errorMessage,
+        reason: 'error',
+        message,
       });
       throw err;
     }
