@@ -8,10 +8,18 @@ type SimplePreHandler = (
   done: () => void
 ) => Promise<void>;
 
+interface MockClaims {
+  scope: string[];
+}
+
+interface ScopeError extends Error {
+  statusCode: number;
+}
+
 describe('requireScope()', () => {
   const done = vi.fn();
 
-  const createMockRequest = (token: string, mockClaims?: any, errorToThrow?: any) => ({
+  const createMockRequest = (token: string, mockClaims?: MockClaims, errorToThrow?: ScopeError) => ({
     uapRawToken: token,
     server: {
       uapContainer: {
@@ -52,10 +60,10 @@ describe('requireScope()', () => {
   it('3. Token missing one required scope → preHandler returns 403 with missing scope', async () => {
     const preHandler = requireScope(['tool:read', 'admin:write']);
     
-    const scopeError = new Error('Missing scopes: admin:write');
-    (scopeError as any).statusCode = 403;
+    const scopeError = new Error('Missing scopes: admin:write') as ScopeError;
+    scopeError.statusCode = 403;
     
-    const request = createMockRequest('token', null, scopeError);
+    const request = createMockRequest('token', undefined, scopeError);
     const reply = { status: vi.fn().mockReturnThis(), send: vi.fn() } as unknown as FastifyReply;
 
     await (preHandler as unknown as SimplePreHandler)(request, reply, done);
@@ -69,10 +77,10 @@ describe('requireScope()', () => {
   it('4. Token missing multiple required scopes → 403 with all missing scopes listed', async () => {
     const preHandler = requireScope(['tool:read', 'admin:write', 'task:submit']);
     
-    const scopeError = new Error('Missing scopes: tool:read, admin:write, task:submit');
-    (scopeError as any).statusCode = 403;
+    const scopeError = new Error('Missing scopes: tool:read, admin:write, task:submit') as ScopeError;
+    scopeError.statusCode = 403;
 
-    const request = createMockRequest('token', null, scopeError);
+    const request = createMockRequest('token', undefined, scopeError);
     const reply = { status: vi.fn().mockReturnThis(), send: vi.fn() } as unknown as FastifyReply;
 
     await (preHandler as unknown as SimplePreHandler)(request, reply, done);
